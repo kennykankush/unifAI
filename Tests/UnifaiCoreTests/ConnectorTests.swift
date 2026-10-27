@@ -116,6 +116,7 @@ final class ConnectorTests: XCTestCase {
         let gateway = try await BalanceClient(session: session).fetch(integrationID: "vercel-ai-gateway", credential: "fixture-key")
         XCTAssertEqual(gateway.balances, [Money(Decimal(string: "8.75")!, "USD")])
         XCTAssertEqual(gateway.reportedConsumption, [Money(Decimal(string: "1.25")!, "USD")])
+        XCTAssertEqual(gateway.details, [BalanceDetail("Credits added", Money(10, "USD"))])
         XCTAssertEqual(Catalogue.integration("vercel-ai-gateway")?.billing, .prepaid)
         XCTAssertEqual(Catalogue.integration("vercel-ai-gateway")?.status, .ready)
 

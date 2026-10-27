@@ -136,6 +136,7 @@ public enum TopUpWatch {
         func detail(_ snapshot: BalanceSnapshot, _ label: String) -> Money? { snapshot.details.first { $0.label == label }?.value }
         let name = Catalogue.integration(account.integrationID)?.name ?? account.label
         var found: (credits: Money, charge: Money, description: String)?
+        var evidenceLabel = "Reported credits purchased"
         switch account.integrationID {
         case "openrouter":
             // Total credits ever purchased: any rise is a purchase.
@@ -146,8 +147,17 @@ public enum TopUpWatch {
                 found = (Money(credits, after.currency), Money(charge, after.currency),
                          "OpenRouter credits \(Money(credits, after.currency).amountText) + fee (detected)")
             }
+        case "vercel-ai-gateway":
+            // Remaining plus used only rises when credits are added. Paid teams no longer receive free credits.
+            evidenceLabel = "Credits added"
+            if let before = detail(old, evidenceLabel), let after = detail(new, evidenceLabel),
+               before.currency == after.currency, after.amount - before.amount >= 1 {
+                let credits = after.amount - before.amount
+                found = (Money(credits, after.currency), Money(credits.rounded2, after.currency), "\(name) credits \(Money(credits, after.currency).amountText) (detected)")
+            }
         case "deepseek":
             // The purchased balance only rises when you top up; usage in between makes this a lower bound.
+            evidenceLabel = "Purchased balance"
             if let before = detail(old, "Purchased balance"), let after = detail(new, "Purchased balance"),
                before.currency == after.currency, after.amount - before.amount >= 1 {
                 let credits = after.amount - before.amount
@@ -169,8 +179,7 @@ public enum TopUpWatch {
         var record = PaymentRecord(accountID: account.id, description: found.description, kind: .topUp, money: found.charge, paidAt: now,
                                    reference: "DETECTED-\(account.integrationID.uppercased())-\(Int(now.timeIntervalSince1970))")
         record.estimated = true
-        let label = account.integrationID == "deepseek" ? "Purchased balance" : "Reported credits purchased"
-        if let before = detail(old, label), let after = detail(new, label) {
+        if let before = detail(old, evidenceLabel), let after = detail(new, evidenceLabel) {
             record.detection = TopUpEvidence(before: before, after: after, observedFrom: old.observedAt,
                                              observedThrough: new.observedAt, lowerBound: account.integrationID == "deepseek")
         }

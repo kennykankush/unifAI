@@ -399,6 +399,24 @@ final class TopUpDetectionTests: XCTestCase {
         XCTAssertTrue(TopUpWatch.payments(old: reading(3.43), new: reading(3.9), account: account, recorded: [], now: now).isEmpty, "Under 1.00 is noise")
         XCTAssertTrue(TopUpWatch.payments(old: reading(13), new: reading(3), account: account, recorded: [], now: now).isEmpty, "Usage lowers it")
     }
+
+    func testVercelAIGatewayCreditsAddedRiseIsDetected() throws {
+        let account = ConnectedAccount(integrationID: "vercel-ai-gateway", label: "Personal", mode: .live)
+        let now = Date()
+        func reading(_ added: Decimal, at date: Date) -> BalanceSnapshot {
+            BalanceSnapshot(balances: [Money(added - 1, "USD")], details: [BalanceDetail("Credits added", Money(added, "USD"))],
+                            reportedConsumption: [Money(1, "USD")], observedAt: date, source: source, coverage: "Synthetic")
+        }
+        let found = try XCTUnwrap(TopUpWatch.payments(old: reading(15, at: now.addingTimeInterval(-60)), new: reading(35, at: now),
+                                                      account: account, recorded: [], now: now).first)
+        XCTAssertEqual(found.money, Money(20, "USD"))
+        XCTAssertEqual(found.estimated, true)
+        XCTAssertEqual(found.detection?.before, Money(15, "USD"))
+        XCTAssertEqual(found.detection?.lowerBound, false)
+        XCTAssertTrue(TopUpWatch.payments(old: nil, new: reading(15, at: now), account: account, recorded: [], now: now).isEmpty, "No history before connecting")
+        XCTAssertTrue(TopUpWatch.payments(old: reading(15, at: now.addingTimeInterval(-60)), new: reading(15.5, at: now),
+                                          account: account, recorded: [], now: now).isEmpty, "Under 1.00 is noise")
+    }
 }
 
 final class NewsAndModelsTests: XCTestCase {

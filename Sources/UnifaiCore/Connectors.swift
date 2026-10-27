@@ -97,8 +97,10 @@ public struct BalanceClient {
                 let body = try JSONDecoder().decode(Body.self, from: data)
                 guard let balance = Self.balanceNumber(body.balance), let used = Self.balanceNumber(body.total_used),
                       balance >= 0, used >= 0 else { throw ConnectorError.invalidResponse }
-                return BalanceSnapshot(balances: [Money(balance, "USD")], reportedConsumption: [Money(used, "USD")], observedAt: now, source: source,
-                                       coverage: "AI Gateway Credits for the whole Vercel team at retrieval. The balance includes any free monthly credits, so it does not establish cash payments; record top-ups from receipts. No daily history, and BYOK requests are not included.")
+                // Remaining plus used only rises when credits are added, which is how top-ups are detected.
+                return BalanceSnapshot(balances: [Money(balance, "USD")], details: [BalanceDetail("Credits added", Money(balance + used, "USD"))],
+                                       reportedConsumption: [Money(used, "USD")], observedAt: now, source: source,
+                                       coverage: "AI Gateway Credits for the whole Vercel team at retrieval. Credits added includes any free credits received before the first purchase, so top-ups are detected from later increases; record earlier purchases from receipts. No daily history, and BYOK requests are not included.")
             }
             if integrationID == "elevenlabs" {
                 struct Body: Decodable { let tier: String?; let character_count: Int; let character_limit: Int; let next_character_count_reset_unix: Int?; let status: String? }
