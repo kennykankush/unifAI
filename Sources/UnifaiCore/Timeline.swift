@@ -143,7 +143,7 @@ public enum TopUpWatch {
             guard let added = detail(new, "Credits added"), added.amount - vercelFreeCredit >= 1,
                   !recorded.contains(where: { $0.accountID == account.id && $0.kind == .topUp }) else { return [] }
             let credits = Money((added.amount - vercelFreeCredit).rounded2, added.currency)
-            var record = PaymentRecord(accountID: account.id, description: "\(name) credits \(credits.amountText) (estimated)", kind: .topUp, money: credits,
+            var record = PaymentRecord(accountID: account.id, description: "\(name) credits \(credits.amountText) (detected)", kind: .topUp, money: credits,
                                        paidAt: now, reference: "DETECTED-\(account.integrationID.uppercased())-\(Int(now.timeIntervalSince1970))")
             record.estimated = true
             return [record]

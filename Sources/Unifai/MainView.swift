@@ -733,6 +733,27 @@ struct MainView: View {
         store.notice = "Recorded \(recorded.count) automatic payment\(recorded.count == 1 ? "" : "s"): \(list.joined(separator: "; ")). They are marked Auto until a receipt or invoice confirms them."
     }
 
+    /// Saves a month's statement as a PDF where the user chooses, with a CSV of the same rows beside it.
+    private func exportStatement(_ month: Date) {
+        let statement = MonthlyStatement(state: store.state, month: month, rates: store.rates)
+        let panel = NSSavePanel()
+        panel.title = "Save Statement"
+        panel.message = "Saves a PDF statement for \(statement.title), with a CSV of the same rows beside it."
+        panel.nameFieldStringValue = statement.fileName + ".pdf"
+        panel.allowedContentTypes = [.pdf]
+        panel.canCreateDirectories = true
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            try StatementPDF.render(statement).write(to: url, options: .atomic)
+            let csv = url.deletingPathExtension().appendingPathExtension("csv")
+            try statement.csv.write(to: csv, atomically: true, encoding: .utf8)
+            store.notice = "Saved the \(statement.title) statement: \(url.lastPathComponent) and \(csv.lastPathComponent)."
+            NSWorkspace.shared.activateFileViewerSelecting([url])
+        } catch {
+            store.notice = "The statement was not saved. \(error.localizedDescription)"
+        }
+    }
+
     /// Imports confirmed payments from a CSV the user picks. Nothing is read unless chosen here.
     private func importPayments() {
         let panel = NSOpenPanel()
@@ -1070,6 +1091,23 @@ struct MainView: View {
                     Button(action: importPayments) { Label("Import CSV", systemImage: "square.and.arrow.down") }
                         .buttonStyle(PillButtonStyle(compact: true))
                         .help("Import confirmed payments from a CSV file: date, description, amount, currency, kind, account, account_label, reference")
+                    Menu {
+                        ForEach(MonthlyStatement.months(store.state), id: \.self) { month in
+                            Button(month.formatted(.dateTime.month(.wide).year())) { exportStatement(month) }
+                        }
+                    } label: {
+                        HStack(spacing: 5) {
+                            Image(systemName: "doc.text").font(.system(size: 11, weight: .semibold))
+                            Text("Statement").font(.system(size: 12, weight: .semibold))
+                            Image(systemName: "chevron.down").font(.system(size: 8, weight: .heavy))
+                        }
+                        .padding(.horizontal, 12).frame(height: 28)
+                        .background(Capsule().fill(Palette.raised))
+                        .overlay(Capsule().strokeBorder(Palette.border))
+                        .contentShape(Capsule())
+                    }
+                    .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize()
+                    .help("Download a month's statement as a PDF, with a CSV of the same rows beside it")
                 }
                 .padding(.bottom, 10)
                 if !unconfirmed.isEmpty { closeMonthBanner(unconfirmed).padding(.bottom, 10) }

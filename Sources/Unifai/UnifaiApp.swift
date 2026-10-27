@@ -68,6 +68,16 @@ struct UnifaiApp: App {
             AppRuntime.initialScroll = UnitPoint(x: 0, y: min(1, max(0, fraction)))
         }
         _store = StateObject(wrappedValue: model)
+        // Visual checks: write a month's statement (YYYY-MM) as PDF and CSV, then exit.
+        if fixtureMode || channel == "dev", let index = args.firstIndex(of: "--export-statement"), args.indices.contains(index + 2),
+           let month = StatementMonth.parser.date(from: args[index + 1]) {
+            let statement = MonthlyStatement(state: model.state, month: month, rates: model.rates)
+            let directory = URL(fileURLWithPath: args[index + 2], isDirectory: true)
+            try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            try? StatementPDF.render(statement).write(to: directory.appendingPathComponent(statement.fileName + ".pdf"))
+            try? statement.csv.write(to: directory.appendingPathComponent(statement.fileName + ".csv"), atomically: true, encoding: .utf8)
+            exit(0)
+        }
         // Visual checks: render every widget size from this workspace's data to PNGs, then exit.
         if fixtureMode || channel == "dev", let index = args.firstIndex(of: "--export-widgets"), args.indices.contains(index + 1) {
             WidgetPreviews.export(WidgetPublisher.snapshot(model), to: URL(fileURLWithPath: args[index + 1], isDirectory: true))
@@ -299,4 +309,13 @@ struct MenuPanel: View {
             popover.contentViewController?.view.window?.makeKey()
         }
     }
+}
+
+private enum StatementMonth {
+    /// Parses YYYY-MM in local time.
+    static let parser: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX"); formatter.dateFormat = "yyyy-MM"
+        return formatter
+    }()
 }
