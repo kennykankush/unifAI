@@ -107,7 +107,7 @@ public enum Catalogue {
                            source: URL(string: "https://platform.kimi.ai/docs/api/balance")))
         items.append(.init(id: "vercel-ai-gateway", name: "Vercel AI Gateway", category: .providers, status: .ready, evidence: .documented,
                            method: "AI Gateway API key · one read-only credits request", capabilities: "Remaining AI Gateway Credits and total used, in US dollars; detects later top-ups",
-                           limitation: "Covers the whole Vercel team the key belongs to. Free credits are mixed into the totals and there is no daily history, so record purchases made before connecting from receipts. Vercel hosting invoices are separate; track them under Vercel.",
+                           limitation: "Covers the whole Vercel team the key belongs to. The first reading proposes credits added minus the $5 free credit as an estimated top-up; confirm it against your receipt. There is no daily history. Vercel hosting invoices are separate; track them under Vercel.",
                            source: URL(string: "https://vercel.com/docs/ai-gateway/sdks-and-apis/rest-api#check-credit-balance")))
         items.append(.init(id: "elevenlabs", name: "ElevenLabs", category: .providers, status: .ready, evidence: .documented,
                            method: "API key · one read-only subscription request", capabilities: "Plan, characters used against the allowance, and when it resets",

@@ -100,7 +100,7 @@ public struct BalanceClient {
                 // Remaining plus used only rises when credits are added, which is how top-ups are detected.
                 return BalanceSnapshot(balances: [Money(balance, "USD")], details: [BalanceDetail("Credits added", Money(balance + used, "USD"))],
                                        reportedConsumption: [Money(used, "USD")], observedAt: now, source: source,
-                                       coverage: "AI Gateway Credits for the whole Vercel team at retrieval. Credits added includes any free credits received before the first purchase, so top-ups are detected from later increases; record earlier purchases from receipts. No daily history, and BYOK requests are not included.")
+                                       coverage: "AI Gateway Credits for the whole Vercel team at retrieval. Credits added includes the $5 free credit Vercel gives before the first purchase, so the first reading proposes the rest as an estimated top-up and later increases are detected as top-ups. No daily history, and BYOK requests are not included.")
             }
             if integrationID == "elevenlabs" {
                 struct Body: Decodable { let tier: String?; let character_count: Int; let character_limit: Int; let next_character_count_reset_unix: Int?; let status: String? }

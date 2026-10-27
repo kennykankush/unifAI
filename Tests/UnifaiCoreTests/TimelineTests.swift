@@ -413,7 +413,14 @@ final class TopUpDetectionTests: XCTestCase {
         XCTAssertEqual(found.estimated, true)
         XCTAssertEqual(found.detection?.before, Money(15, "USD"))
         XCTAssertEqual(found.detection?.lowerBound, false)
-        XCTAssertTrue(TopUpWatch.payments(old: nil, new: reading(15, at: now), account: account, recorded: [], now: now).isEmpty, "No history before connecting")
+        let opening = try XCTUnwrap(TopUpWatch.payments(old: nil, new: reading(15, at: now), account: account, recorded: [], now: now).first)
+        XCTAssertEqual(opening.money, Money(10, "USD"), "Credits added minus the $5 free credit")
+        XCTAssertEqual(opening.estimated, true)
+        XCTAssertEqual(opening.kind, .topUp)
+        let earlier = BalanceSnapshot(balances: [Money(15, "USD")], observedAt: now.addingTimeInterval(-60), source: source, coverage: "Before Credits added existed")
+        XCTAssertEqual(TopUpWatch.payments(old: earlier, new: reading(15, at: now), account: account, recorded: [], now: now).count, 1, "Upgraded wallets get the proposal once")
+        XCTAssertTrue(TopUpWatch.payments(old: nil, new: reading(15, at: now), account: account, recorded: [opening], now: now).isEmpty, "Never proposed twice")
+        XCTAssertTrue(TopUpWatch.payments(old: nil, new: reading(5, at: now), account: account, recorded: [], now: now).isEmpty, "Free credit alone is not a purchase")
         XCTAssertTrue(TopUpWatch.payments(old: reading(15, at: now.addingTimeInterval(-60)), new: reading(15.5, at: now),
                                           account: account, recorded: [], now: now).isEmpty, "Under 1.00 is noise")
     }
