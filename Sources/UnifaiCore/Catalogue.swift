@@ -35,7 +35,7 @@ public struct Integration: Identifiable {
         switch id {
         case "openrouter", "deepseek", "claude-api", "openai-api", "kimi", "vercel-ai-gateway", "minimax", "zai", "dashscope": return .prepaid
         case "codex", "claude-subscription", "elevenlabs": return .allowance
-        case "azure-subscription", "azure", "bedrock", "vertex", "aws", "gcp", "digitalocean", "hetzner", "railway", "fly", "render", "other-cloud",
+        case "azure-subscription", "neon", "azure", "bedrock", "vertex", "aws", "gcp", "digitalocean", "hetzner", "railway", "fly", "render", "other-cloud",
              "groq", "mistral", "together", "fireworks", "replicate", "huggingface", "fal", "xai", "perplexity-api", "stability", "gemini-api":
             return .payAsYouGo
         default: return .subscription
@@ -129,9 +129,13 @@ public enum Catalogue {
                            method: "Local Azure CLI · your existing az login", capabilities: "Month-to-date spend per currency across enabled subscriptions, with the top services (VMs, storage, Foundry models)",
                            limitation: "Reads through the Azure CLI on this Mac (az rest to the Cost Management query API), so install it and run az login first. Unifai stores no Azure credential. Costs can lag by several hours; credits and invoices are not included.",
                            source: URL(string: "https://learn.microsoft.com/en-us/rest/api/cost-management/query/usage")))
+        items.append(.init(id: "neon", name: "Neon Postgres", category: .cloud, status: .ready, evidence: .documented,
+                           method: "Neon API key · read-only usage requests", capabilities: "Estimated month-to-date cost by line item (compute, storage, restore history, transfer, branches) and per day",
+                           limitation: "Needs a usage-based plan (Launch or higher). Neon's API reports usage, not dollars, so Unifai prices it at Neon's published rates; your invoice is the final amount. A personal key must belong to one organization; otherwise use an organization key.",
+                           source: URL(string: "https://neon.com/docs/guides/consumption-metrics")))
         let cloud = [("aws", "AWS"), ("gcp", "Google Cloud"), ("vercel", "Vercel"), ("cloudflare", "Cloudflare"), ("digitalocean", "DigitalOcean"),
                      ("hetzner", "Hetzner"), ("railway", "Railway"), ("fly", "Fly.io"), ("render", "Render"), ("supabase", "Supabase"),
-                     ("neon", "Neon"), ("netlify", "Netlify"), ("domains", "Domains & DNS"), ("other-cloud", "Other hosting or servers")]
+                     ("netlify", "Netlify"), ("domains", "Domains & DNS"), ("other-cloud", "Other hosting or servers")]
         for (id, name) in cloud {
             items.append(.init(id: id, name: name, category: .cloud, status: .manual, evidence: .unverified, method: "Manual confirmed records and renewals",
                                capabilities: "Record invoices, top-ups and recurring plans; import from CSV",

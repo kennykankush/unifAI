@@ -128,6 +128,56 @@ final class ConnectorTests: XCTestCase {
             } catch { XCTAssertEqual(error as? ConnectorError, .invalidResponse) }
         }
     }
+    func testNeonPricesThisMonthsUsageAtPlanRates() async throws {
+        let session = StubProtocol.session(); defer { session.invalidateAndCancel() }
+        var calendar = Calendar(identifier: .gregorian); calendar.timeZone = TimeZone(identifier: "UTC")!
+        let now = calendar.date(from: DateComponents(year: 2026, month: 10, day: 2, hour: 12))!
+        var paths: [String] = []
+        StubProtocol.handler = { request in
+            XCTAssertEqual(request.httpMethod, "GET")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer fixture-key")
+            let url = try XCTUnwrap(request.url)
+            paths.append(url.path)
+            if url.path == "/api/v2/users/me/organizations" {
+                return (200, [:], Data(#"{"organizations":[{"id":"org-1","name":"Personal","plan":"launch"}]}"#.utf8))
+            }
+            XCTAssertEqual(url.path, "/api/v2/consumption_history/v2/projects")
+            let query = Dictionary(uniqueKeysWithValues: URLComponents(url: url, resolvingAgainstBaseURL: false)!.queryItems!.map { ($0.name, $0.value!) })
+            XCTAssertEqual(query["org_id"], "org-1")
+            XCTAssertEqual(query["from"], "2026-10-01T00:00:00Z")
+            XCTAssertEqual(query["to"], "2026-10-03T00:00:00Z")
+            XCTAssertEqual(query["granularity"], "daily")
+            XCTAssertEqual(query["metrics"]?.split(separator: ",").count, 8)
+            return (200, [:], Data(#"""
+            {"projects":[{"project_id":"p1","periods":[{"period_plan":"launch","consumption":[
+              {"timeframe_start":"2026-10-01T00:00:00Z","metrics":[{"metric_name":"compute_unit_seconds","value":36000},{"metric_name":"root_branch_bytes_month","value":1000000000},
+               {"metric_name":"instant_restore_bytes_month","value":500000000},{"metric_name":"public_network_transfer_bytes","value":1000000000},{"metric_name":"extra_branches_month","value":240}]},
+              {"timeframe_start":"2026-10-02T00:00:00Z","metrics":[{"metric_name":"compute_unit_seconds","value":18000},{"metric_name":"root_branch_bytes_month","value":1000000000}]}]}]}],
+             "pagination":{"cursor":"p1"}}
+            """#.utf8))
+        }
+        let neon = try await BalanceClient(session: session).fetch(integrationID: "neon", credential: "fixture-key", now: now)
+        XCTAssertEqual(paths.count, 2)
+        // Compute 15 CU-hours x 0.106, storage 2 GB-months x 0.35, restore 0.5 x 0.20,
+        // 24 billable branch-hours after 9 included branches, transfer under the 500 GB allowance.
+        XCTAssertEqual(neon.reportedConsumption, [Money(Decimal(string: "2.44")!, "USD")])
+        XCTAssertEqual(neon.services?.map(\.name), ["Compute", "Storage", "Instant restore", "Extra branches"])
+        XCTAssertEqual(neon.services?.first?.cost, Money(Decimal(string: "1.59")!, "USD"))
+        XCTAssertEqual(neon.dailyCosts, [DailyCost(day: "2026-10-01", amount: Decimal(string: "1.56")!), DailyCost(day: "2026-10-02", amount: Decimal(string: "0.88")!)])
+        XCTAssertEqual(neon.consumptionPeriod, "This month")
+        XCTAssertEqual(neon.plan, "Neon Launch")
+        XCTAssertEqual(Catalogue.integration("neon")?.billing, .payAsYouGo)
+        XCTAssertEqual(Catalogue.integration("neon")?.status, .ready)
+
+        StubProtocol.handler = { request in
+            request.url?.path == "/api/v2/users/me/organizations"
+                ? (200, [:], Data(#"{"organizations":[{"id":"org-1"}]}"#.utf8)) : (403, [:], Data("{}".utf8))
+        }
+        do {
+            _ = try await BalanceClient(session: session).fetch(integrationID: "neon", credential: "fixture-key", now: now)
+            XCTFail("Free plan accepted")
+        } catch { XCTAssertTrue(error.localizedDescription.contains("Launch or higher")) }
+    }
     func testHTTPFailuresAreTypedAndNeverIncludeBody() async throws {
         let session = StubProtocol.session(); defer { session.invalidateAndCancel() }
         for (status, expected) in [(401, ConnectorError.authorization), (403, .authorization), (429, .rateLimited), (500, .unavailable(500)), (302, .unavailable(302))] {

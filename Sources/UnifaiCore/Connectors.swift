@@ -33,6 +33,7 @@ public struct BalanceClient {
         if integrationID == "claude-subscription" { return try await ClaudeCodeClient().fetch(now: now) }
         if integrationID == "azure-subscription" { return try await AzureCostClient().fetch(now: now) }
         guard !credential.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw ConnectorError.missingCredential }
+        if integrationID == "neon" { return try await NeonCostClient(session: session).fetch(credential: credential, now: now) }
         let endpoint: String
         switch integrationID {
         case "openrouter": endpoint = "https://openrouter.ai/api/v1/credits"
@@ -548,6 +549,150 @@ public struct ClaudeCodeClient {
         return BalanceSnapshot(balances: [], observedAt: now, source: source,
                                coverage: "Plan read from Claude Code on this Mac (claude auth status). Anthropic does not offer subscription usage limits to other apps; run /usage in Claude Code to see them.",
                                plan: plan)
+    }
+}
+
+/// Estimates month-to-date Neon spend from the invoice-aligned consumption API (usage-based plans),
+/// priced at Neon's published rates. Only GET requests are sent, and they never wake a compute.
+public struct NeonCostClient {
+    private let session: URLSession
+    public init(session: URLSession = BalanceClient.privateSession()) { self.session = session }
+    public static let source = URL(string: "https://neon.com/docs/introduction/usage-calculations")!
+    static let api = "https://console.neon.tech/api/v2"
+    static let metrics = ["compute_unit_seconds", "root_branch_bytes_month", "child_branch_bytes_month", "instant_restore_bytes_month",
+                          "snapshot_storage_bytes_month", "public_network_transfer_bytes", "private_network_transfer_bytes", "extra_branches_month"]
+
+    /// Published US dollar rates per plan, and the child branches each project includes.
+    struct Rates { let compute: Decimal; let privateTransfer: Decimal; let includedChildBranches: Decimal }
+    static func rates(_ plan: String) -> Rates? {
+        switch plan.lowercased() {
+        case "launch": return Rates(compute: Decimal(string: "0.106")!, privateTransfer: 0, includedChildBranches: 9)
+        case "agent": return Rates(compute: Decimal(string: "0.106")!, privateTransfer: Decimal(string: "0.01")!, includedChildBranches: 24)
+        case "scale", "enterprise": return Rates(compute: Decimal(string: "0.222")!, privateTransfer: Decimal(string: "0.01")!, includedChildBranches: 24)
+        default: return nil
+        }
+    }
+
+    struct Organizations: Decodable { struct Org: Decodable { let id: String; let name: String? }; let organizations: [Org] }
+    struct Projects: Decodable { struct Project: Decodable { let org_id: String? }; let projects: [Project] }
+    struct Page: Decodable {
+        struct Metric: Decodable { let metric_name: String; let value: Decimal }
+        struct Bucket: Decodable { let timeframe_start: String; let metrics: [Metric] }
+        struct Period: Decodable { let period_plan: String; let consumption: [Bucket] }
+        struct Project: Decodable { let project_id: String; let periods: [Period] }
+        struct Pagination: Decodable { let cursor: String? }
+        let projects: [Project]; let pagination: Pagination?
+    }
+
+    public func fetch(credential: String, now: Date = .now) async throws -> BalanceSnapshot {
+        let (orgID, orgName) = try await organization(credential)
+        var calendar = Calendar(identifier: .gregorian); calendar.timeZone = TimeZone(identifier: "UTC")!
+        let monthStart = calendar.dateInterval(of: .month, for: now)!.start
+        // Daily buckets round `to` down to midnight, so end at tomorrow to include today.
+        var end = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: now))!
+        var pages: [Page] = []
+        var cursor: String?
+        repeat {
+            var items = [URLQueryItem(name: "org_id", value: orgID), URLQueryItem(name: "from", value: monthStart.ISO8601Format()),
+                         URLQueryItem(name: "to", value: end.ISO8601Format()), URLQueryItem(name: "granularity", value: "daily"),
+                         URLQueryItem(name: "metrics", value: Self.metrics.joined(separator: ",")), URLQueryItem(name: "limit", value: "100")]
+            if let cursor { items.append(URLQueryItem(name: "cursor", value: cursor)) }
+            let (status, data) = try await get("/consumption_history/v2/projects", items, credential)
+            if status == 406, end > now, pages.isEmpty { end = now; continue }
+            switch status {
+            case 200..<300: break
+            case 401: throw ConnectorError.authorization
+            case 403: throw ValidationError.message("Neon's usage API needs a usage-based plan (Launch or higher). The Free plan has no charges to track.")
+            case 429: throw ConnectorError.rateLimited
+            default: throw ConnectorError.unavailable(status)
+            }
+            guard let page = try? JSONDecoder().decode(Page.self, from: data) else { throw ConnectorError.invalidResponse }
+            pages.append(page)
+            cursor = page.projects.count == 100 ? page.pagination?.cursor : nil
+        } while cursor != nil && pages.count < 10
+        return try Self.price(pages, organization: orgName, now: now)
+    }
+
+    /// The organization the key belongs to: a personal key's only organization, or an organization key's own.
+    func organization(_ credential: String) async throws -> (String, String?) {
+        let (status, data) = try await get("/users/me/organizations", [], credential)
+        if (200..<300).contains(status) {
+            guard let orgs = try? JSONDecoder().decode(Organizations.self, from: data).organizations else { throw ConnectorError.invalidResponse }
+            guard orgs.count == 1 else {
+                throw ValidationError.message(orgs.isEmpty ? "This Neon key has no organization." :
+                    "This Neon key can see \(orgs.count) organizations. Create an organization API key in the one you want to track (Organization settings > API keys).")
+            }
+            return (orgs[0].id, orgs[0].name)
+        }
+        if status == 429 { throw ConnectorError.rateLimited }
+        // Organization keys are not a user; their projects name the organization.
+        let (projectStatus, projectData) = try await get("/projects", [URLQueryItem(name: "limit", value: "1")], credential)
+        guard (200..<300).contains(projectStatus) else { throw projectStatus == 401 || projectStatus == 403 ? ConnectorError.authorization : ConnectorError.unavailable(projectStatus) }
+        guard let org = (try? JSONDecoder().decode(Projects.self, from: projectData))?.projects.first?.org_id else {
+            throw ValidationError.message("No Neon projects were found for this key.")
+        }
+        return (org, nil)
+    }
+
+    private func get(_ path: String, _ items: [URLQueryItem], _ credential: String) async throws -> (Int, Data) {
+        var components = URLComponents(string: Self.api + path)!
+        if !items.isEmpty { components.queryItems = items }
+        var request = URLRequest(url: components.url!)
+        request.setValue("Bearer \(credential)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        let (data, response) = try await session.data(for: request)
+        guard let response = response as? HTTPURLResponse else { throw ConnectorError.invalidResponse }
+        return (response.statusCode, data)
+    }
+
+    /// Converts raw usage to dollars the way Neon's invoice does: CU-seconds to CU-hours, byte-months to
+    /// GB-months, 500 GB of public transfer per project and the included child branches per hour free.
+    static func price(_ pages: [Page], organization: String?, now: Date) throws -> BalanceSnapshot {
+        let gb = Decimal(1_000_000_000)
+        var lines: [String: Decimal] = [:]
+        var perDay: [String: Decimal] = [:]
+        var plans = Set<String>()
+        var projects = 0
+        for project in pages.flatMap(\.projects) {
+            projects += 1
+            var publicBytes: Decimal = 0
+            for period in project.periods {
+                guard let rates = rates(period.period_plan) else { throw ValidationError.message("Neon plan \(period.period_plan) is not priced by Unifai yet.") }
+                plans.insert(period.period_plan.lowercased())
+                for bucket in period.consumption {
+                    var value: [String: Decimal] = [:]
+                    for metric in bucket.metrics {
+                        guard !metric.value.isNaN, metric.value >= 0 else { throw ConnectorError.invalidResponse }
+                        value[metric.metric_name, default: 0] += metric.value
+                    }
+                    let freeBranchHours = rates.includedChildBranches * 24
+                    let costs: [(String, Decimal)] = [
+                        ("Compute", (value["compute_unit_seconds"] ?? 0) / 3600 * rates.compute),
+                        ("Storage", ((value["root_branch_bytes_month"] ?? 0) + (value["child_branch_bytes_month"] ?? 0)) / gb * Decimal(string: "0.35")!),
+                        ("Instant restore", (value["instant_restore_bytes_month"] ?? 0) / gb * Decimal(string: "0.20")!),
+                        ("Snapshots", (value["snapshot_storage_bytes_month"] ?? 0) / gb * Decimal(string: "0.09")!),
+                        ("Private transfer", (value["private_network_transfer_bytes"] ?? 0) / gb * rates.privateTransfer),
+                        ("Extra branches", max(0, (value["extra_branches_month"] ?? 0) - freeBranchHours) / 744 * Decimal(string: "1.50")!)
+                    ]
+                    let day = String(bucket.timeframe_start.prefix(10))
+                    for (name, cost) in costs where cost > 0 { lines[name, default: 0] += cost; perDay[day, default: 0] += cost }
+                    publicBytes += value["public_network_transfer_bytes"] ?? 0
+                }
+            }
+            let billable = max(0, publicBytes / gb - 500) * Decimal(string: "0.10")!
+            if billable > 0 { lines["Public transfer", default: 0] += billable }
+        }
+        let total = lines.values.reduce(0, +)
+        let services = lines.sorted { $0.value > $1.value }.map { CostLine(name: $0.key, cost: Money($0.value.rounded2, "USD")) }
+        let plan = plans.count == 1 ? plans.first! : nil
+        let owner = organization.map { " in \($0)" } ?? ""
+        var snapshot = BalanceSnapshot(balances: [], details: services.prefix(3).map { BalanceDetail($0.name, $0.cost) },
+                                       reportedConsumption: [Money(total.rounded2, "USD")], observedAt: now, source: source,
+                                       coverage: "Estimated month-to-date cost for \(projects) project\(projects == 1 ? "" : "s")\(owner), from Neon's usage API priced at published \(plan?.capitalized ?? "plan") rates. Usage updates about every 15 minutes. Neon bills at the end of the month; taxes and credits are not included.",
+                                       plan: plan.map { "Neon \($0.capitalized)" }, consumptionPeriod: "This month")
+        snapshot.services = services.isEmpty ? nil : services
+        snapshot.dailyCosts = perDay.isEmpty ? nil : perDay.keys.sorted().map { DailyCost(day: $0, amount: perDay[$0]!.rounded2) }
+        return snapshot
     }
 }
 

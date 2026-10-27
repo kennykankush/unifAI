@@ -44,6 +44,7 @@ enum Palette {
         case "claude-api", "claude-subscription": return [0xA8401F, 0xD8693F, 0xEE9466]
         case "gemini-api", "gemini-consumer", "gemini-cli", "vertex": return [0x2F5BD8, 0x7A5CE8, 0xC77ADB]
         case "azure-subscription": return [0x0B4FB3, 0x1C7BE0, 0x3FA2F2]
+        case "neon": return [0x0A4D3C, 0x0F9A72, 0x2FD9A0]
         case "aws": return [0x9A5A0C, 0xD18419, 0xEFA53A]
         case "gcp": return [0x1F5BC6, 0x2F8E5A, 0xE0A93A]
         case "cursor", "github-releases", "github-private", "github-stars", "copilot", "x-accounts", "x-for-you", "xai", "vercel", "vercel-ai-gateway":
