@@ -105,6 +105,7 @@ struct AccountEditor: View {
         case "openai-api": return "Create an organization Admin key at platform.openai.com > Settings > Organization > Admin keys. It has broad access; Unifai only sends GET /v1/organization/costs."
         case "claude-api": return "Create an Admin key in Claude Console > Settings > Admin keys (organizations only). It has broad access; Unifai only sends GET /v1/organizations/cost_report. Import top-ups from receipts on the Payments page."
         case "kimi": return "Create an API key at platform.kimi.ai > API Keys. Unifai only sends GET /v1/users/me/balance."
+        case "vercel-ai-gateway": return "Create an API key in the Vercel dashboard > AI Gateway > API Keys. Unifai only sends GET /v1/credits."
         case "elevenlabs": return "Create an API key at elevenlabs.io > Developers > API Keys; it needs User read access. Unifai only sends GET /v1/user/subscription."
         default: return "Unifai only sends GET /user/balance with the key you enter."
         }

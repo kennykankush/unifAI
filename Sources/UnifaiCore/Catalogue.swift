@@ -33,7 +33,7 @@ public struct Integration: Identifiable {
     /// Codex and Claude Code sign in through their own apps, so Unifai stores no credential for them.
     public var billing: BillingModel {
         switch id {
-        case "openrouter", "deepseek", "claude-api", "openai-api", "kimi", "minimax", "zai", "dashscope": return .prepaid
+        case "openrouter", "deepseek", "claude-api", "openai-api", "kimi", "vercel-ai-gateway", "minimax", "zai", "dashscope": return .prepaid
         case "codex", "claude-subscription", "elevenlabs": return .allowance
         case "azure-subscription", "azure", "bedrock", "vertex", "aws", "gcp", "digitalocean", "hetzner", "railway", "fly", "render", "other-cloud",
              "groq", "mistral", "together", "fireworks", "replicate", "huggingface", "fal", "xai", "perplexity-api", "stability", "gemini-api":
@@ -105,6 +105,10 @@ public enum Catalogue {
                            method: "API key · one read-only balance request", capabilities: "Available, cash and voucher balance in US dollars",
                            limitation: "Uses platform.kimi.ai keys; China platform keys are not accepted. No payment history, so record top-ups from receipts.",
                            source: URL(string: "https://platform.kimi.ai/docs/api/balance")))
+        items.append(.init(id: "vercel-ai-gateway", name: "Vercel AI Gateway", category: .providers, status: .ready, evidence: .documented,
+                           method: "AI Gateway API key · one read-only credits request", capabilities: "Remaining AI Gateway Credits and total used, in US dollars",
+                           limitation: "Covers the whole Vercel team the key belongs to. The balance includes free monthly credits and has no daily history, so record top-ups from receipts. Vercel hosting invoices are separate; track them under Vercel.",
+                           source: URL(string: "https://vercel.com/docs/ai-gateway/sdks-and-apis/rest-api#check-credit-balance")))
         items.append(.init(id: "elevenlabs", name: "ElevenLabs", category: .providers, status: .ready, evidence: .documented,
                            method: "API key · one read-only subscription request", capabilities: "Plan, characters used against the allowance, and when it resets",
                            limitation: "Shows usage, not money; record the subscription as a schedule so renewals count toward spend.",

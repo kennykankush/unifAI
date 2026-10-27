@@ -105,6 +105,28 @@ final class ConnectorTests: XCTestCase {
         XCTAssertEqual(Catalogue.integration("elevenlabs")?.billing, .allowance)
         XCTAssertEqual(Catalogue.integration("kimi")?.status, .ready)
     }
+    func testVercelAIGatewayReadsCredits() async throws {
+        let session = StubProtocol.session(); defer { session.invalidateAndCancel() }
+        StubProtocol.handler = { request in
+            XCTAssertEqual(request.httpMethod, "GET")
+            XCTAssertEqual(request.url?.absoluteString, "https://ai-gateway.vercel.sh/v1/credits")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer fixture-key")
+            return (200, [:], Data(#"{"balance":"8.75","total_used":"1.25"}"#.utf8))
+        }
+        let gateway = try await BalanceClient(session: session).fetch(integrationID: "vercel-ai-gateway", credential: "fixture-key")
+        XCTAssertEqual(gateway.balances, [Money(Decimal(string: "8.75")!, "USD")])
+        XCTAssertEqual(gateway.reportedConsumption, [Money(Decimal(string: "1.25")!, "USD")])
+        XCTAssertEqual(Catalogue.integration("vercel-ai-gateway")?.billing, .prepaid)
+        XCTAssertEqual(Catalogue.integration("vercel-ai-gateway")?.status, .ready)
+
+        for body in [#"{"balance":"-1","total_used":"0"}"#, #"{"balance":"NaN","total_used":"0"}"#, #"{"balance":8.75,"total_used":"0"}"#] {
+            StubProtocol.handler = { _ in (200, [:], Data(body.utf8)) }
+            do {
+                _ = try await BalanceClient(session: session).fetch(integrationID: "vercel-ai-gateway", credential: "fixture-key")
+                XCTFail("Accepted \(body)")
+            } catch { XCTAssertEqual(error as? ConnectorError, .invalidResponse) }
+        }
+    }
     func testHTTPFailuresAreTypedAndNeverIncludeBody() async throws {
         let session = StubProtocol.session(); defer { session.invalidateAndCancel() }
         for (status, expected) in [(401, ConnectorError.authorization), (403, .authorization), (429, .rateLimited), (500, .unavailable(500)), (302, .unavailable(302))] {

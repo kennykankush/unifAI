@@ -46,7 +46,7 @@ enum Palette {
         case "azure-subscription": return [0x0B4FB3, 0x1C7BE0, 0x3FA2F2]
         case "aws": return [0x9A5A0C, 0xD18419, 0xEFA53A]
         case "gcp": return [0x1F5BC6, 0x2F8E5A, 0xE0A93A]
-        case "cursor", "github-releases", "github-private", "github-stars", "copilot", "x-accounts", "x-for-you", "xai", "vercel":
+        case "cursor", "github-releases", "github-private", "github-stars", "copilot", "x-accounts", "x-for-you", "xai", "vercel", "vercel-ai-gateway":
             return [0x23242B, 0x383A45, 0x5A5D6B]
         case nil: return [0x2C2D36, 0x41434F, 0x6A6D7C]
         default:
@@ -107,7 +107,7 @@ enum Logos {
         case "azure-subscription": return "azure-color"
         case "aws": return "aws-color"
         case "gcp": return "googlecloud-color"
-        case "vercel": return "vercel"
+        case "vercel", "vercel-ai-gateway": return "vercel"
         case "cloudflare": return "cloudflare-color"
         case "digitalocean": return "digitalocean"
         case "railway": return "railway"

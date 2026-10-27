@@ -38,6 +38,7 @@ public struct BalanceClient {
         case "openrouter": endpoint = "https://openrouter.ai/api/v1/credits"
         case "deepseek": endpoint = "https://api.deepseek.com/user/balance"
         case "kimi": endpoint = "https://api.moonshot.ai/v1/users/me/balance"
+        case "vercel-ai-gateway": endpoint = "https://ai-gateway.vercel.sh/v1/credits"
         case "elevenlabs": endpoint = "https://api.elevenlabs.io/v1/user/subscription"
         case "openai-api":
             // Costs for the last 30 full and partial UTC days, one bucket per day.
@@ -89,6 +90,15 @@ public struct BalanceClient {
                 if let voucher = body.voucher_balance, voucher > 0 { details.append(BalanceDetail("Voucher balance", Money(voucher.rounded2, "USD"))) }
                 return BalanceSnapshot(balances: [Money(body.available_balance.rounded2, "USD")], details: details, observedAt: now, source: source,
                                        coverage: "Kimi Open Platform balance (platform.kimi.ai keys). Available balance includes vouchers; cash balance can go negative when the account owes money. Keys from the China platform (platform.moonshot.cn) are not accepted.")
+            }
+            if integrationID == "vercel-ai-gateway" {
+                // Team-wide AI Gateway Credits in US dollars, as decimal strings.
+                struct Body: Decodable { let balance: String; let total_used: String }
+                let body = try JSONDecoder().decode(Body.self, from: data)
+                guard let balance = Self.balanceNumber(body.balance), let used = Self.balanceNumber(body.total_used),
+                      balance >= 0, used >= 0 else { throw ConnectorError.invalidResponse }
+                return BalanceSnapshot(balances: [Money(balance, "USD")], reportedConsumption: [Money(used, "USD")], observedAt: now, source: source,
+                                       coverage: "AI Gateway Credits for the whole Vercel team at retrieval. The balance includes any free monthly credits, so it does not establish cash payments; record top-ups from receipts. No daily history, and BYOK requests are not included.")
             }
             if integrationID == "elevenlabs" {
                 struct Body: Decodable { let tier: String?; let character_count: Int; let character_limit: Int; let next_character_count_reset_unix: Int?; let status: String? }
