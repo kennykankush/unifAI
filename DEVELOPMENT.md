@@ -1,5 +1,9 @@
 # First local milestone
 
+## November 1: Vercel and connector coverage
+
+Vercel hosting has a team-scoped connector for plan, projects, deployment states and optional gross usage. GitHub personal/organization billing, Cloudflare billable usage, DigitalOcean balances and Supabase project/add-on inventory now have read-only API clients and setup flows. The 105 manual additions were removed at the user's request. See [live coverage](docs/connector-map.md), the [Vercel verification](evidence/vercel-2026-11-01.md), and the [live connector verification](evidence/live-connectors-2026-11-01.md). Authenticated account verification still requires user-entered tokens.
+
 This section records the October 19 milestone. Its deferred-work list is historical; see README.md for the current feature set.
 
 ## October 21: payment reliability, recovery and agent explanations

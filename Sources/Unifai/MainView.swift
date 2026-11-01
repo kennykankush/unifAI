@@ -919,6 +919,10 @@ struct MainView: View {
             return [TileRow(label: "Status", value: account.mode == .manual ? "Manual records only" : "Refresh to read", tint: .secondary)]
         }
         var rows: [TileRow] = []
+        if let report = snapshot.providerUsage {
+            rows += report.costs.map { TileRow(label: report.costLabel, value: $0.plainText) }
+            if report.costs.isEmpty { rows.append(TileRow(label: "Inventory", value: "\(snapshot.resources?.count ?? 0) resources · billing unavailable")) }
+        }
         for window in snapshot.allowances ?? [] {
             let reset = window.resetsAt.map { " · resets \($0.formatted(.relative(presentation: .named)))" } ?? ""
             rows.append(TileRow(label: window.name, value: "\(window.usedPercent)% used\(reset)",

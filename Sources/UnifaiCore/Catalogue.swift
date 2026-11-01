@@ -133,8 +133,36 @@ public enum Catalogue {
                            method: "Neon API key · read-only usage requests", capabilities: "Estimated month-to-date cost by line item (compute, storage, restore history, transfer, branches) and per day",
                            limitation: "Needs a usage-based plan (Launch or higher). Neon's API reports usage, not dollars, so Unifai prices it at Neon's published rates; your invoice is the final amount. A personal key must belong to one organization; otherwise use an organization key.",
                            source: URL(string: "https://neon.com/docs/guides/consumption-metrics")))
-        let cloud = [("aws", "AWS"), ("gcp", "Google Cloud"), ("vercel", "Vercel"), ("cloudflare", "Cloudflare"), ("digitalocean", "DigitalOcean"),
-                     ("hetzner", "Hetzner"), ("railway", "Railway"), ("fly", "Fly.io"), ("render", "Render"), ("supabase", "Supabase"),
+        items.append(.init(id: "vercel", name: "Vercel", category: .cloud, status: .ready, evidence: .partial,
+                           method: "Team ID and access token · read-only team, project and usage queries",
+                           capabilities: "Current plan, observed plan changes, visible projects, deployment states and available CPU, memory and other usage meters",
+                           limitation: "Enter a Team ID and token with access to that team. Usage follows Vercel's CLI billing route and may be unavailable. Gross charges exclude credits and stay outside spending totals. Earlier upgrade dates are unknown; import invoices for payments.",
+                           source: URL(string: "https://vercel.com/docs/cli/usage")))
+        items.append(.init(id: "cloudflare", name: "Cloudflare", category: .cloud, status: .ready, evidence: .documented,
+                           method: "Account ID and API token with Billing Read",
+                           capabilities: "Live billable usage and charges by service and zone for the current billing cycle",
+                           limitation: "Pay-as-you-go accounts only; updates daily. Fixed subscriptions and enterprise contracts are not included. Charges remain separate from payments.",
+                           source: URL(string: "https://developers.cloudflare.com/billing/manage/billable-usage/")))
+        items.append(.init(id: "digitalocean", name: "DigitalOcean", category: .cloud, status: .ready, evidence: .documented,
+                           method: "API token with billing read access",
+                           capabilities: "Live month-to-date usage and signed account balances, with provider generation time",
+                           limitation: "Account balances may be debt or credit, not available cash. No invoices, resource inventory or payments are inferred.",
+                           source: URL(string: "https://docs.digitalocean.com/reference/pydo/reference/balance/get/")))
+        items.append(.init(id: "supabase", name: "Supabase", category: .cloud, status: .ready, evidence: .partial,
+                           method: "Organization slug and Management API access token",
+                           capabilities: "Live projects, status, region and selected compute/add-ons",
+                           limitation: "Inventory only: no billing total, CPU consumption, plan or upgrade history. Add-on prices are not charges. Up to 100 visible projects per organization.",
+                           source: URL(string: "https://supabase.com/docs/reference/api/introduction")))
+        for (id, name, scope) in [("github-billing", "GitHub personal billing", "Plan user permission (read)"),
+                                  ("github-org-billing", "GitHub organization billing", "Administration organization permission (read)")] {
+            items.append(.init(id: id, name: name, category: .cloud, status: .ready, evidence: .documented,
+                               method: "Account name and access token · \(scope)",
+                               capabilities: "Live net metered usage by product, SKU and billed repository for the current UTC month",
+                               limitation: "Requires enhanced billing access. Personal and organization billing are separate. Fixed subscriptions and payments are not included; usage remains outside payment totals.",
+                               source: URL(string: "https://docs.github.com/en/rest/billing/usage")))
+        }
+        let cloud = [("aws", "AWS"), ("gcp", "Google Cloud"),
+                     ("hetzner", "Hetzner"), ("railway", "Railway"), ("fly", "Fly.io"), ("render", "Render"),
                      ("netlify", "Netlify"), ("domains", "Domains & DNS"), ("other-cloud", "Other hosting or servers")]
         for (id, name) in cloud {
             items.append(.init(id: id, name: name, category: .cloud, status: .manual, evidence: .unverified, method: "Manual confirmed records and renewals",

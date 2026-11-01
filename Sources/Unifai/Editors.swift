@@ -28,6 +28,7 @@ struct AccountEditor: View {
     @State private var owner: String
     @State private var mode: ConnectionMode
     @State private var credential = ""
+    @State private var vercelTeamID = ""
     @State private var error: String?
     @State private var signingIn = false
     @State private var signInStatus: String?
@@ -62,6 +63,11 @@ struct AccountEditor: View {
                 } footer: { Text("Already signed in to \(integration.id == "codex" ? "Codex" : integration.id == "azure-subscription" ? "the Azure CLI" : "Claude Code")? Skip this and add the account.") }
             } else if mode == .live {
                 Section {
+                    if integration.id == "vercel" {
+                        TextField("Vercel Team ID", text: $vercelTeamID, prompt: Text("team_…"))
+                    } else if ScopedToken.integrations.contains(integration.id) {
+                        TextField(scopeLabel, text: $vercelTeamID)
+                    }
                     SecureField(account == nil ? "Credential" : "Replace Credential", text: $credential, prompt: Text(account == nil ? (integration.id == "openai-api" ? "sk-admin-..." : integration.id == "claude-api" ? "sk-ant-admin01-..." : "Paste a key") : "Leave blank to keep the saved key"))
                         .textContentType(.password)
                     Text(credentialHint).font(.caption).foregroundStyle(.secondary)
@@ -101,20 +107,40 @@ struct AccountEditor: View {
     }
     private var credentialHint: String {
         switch integration.id {
+        case "github-billing": return "Enter your GitHub username and a token with Plan user permission (read). Your account must have enhanced billing access. To replace a token, enter both fields; leave both blank to keep it."
+        case "github-org-billing": return "Enter the organization login and a token with Administration organization permission (read). You need organization billing access. To replace a token, enter both fields; leave both blank to keep it."
+        case "cloudflare": return "Enter the Account ID from your Cloudflare dashboard and an API token with Account Billing Read access. Pay-as-you-go accounts only. To replace a token, enter both fields; leave both blank to keep it."
+        case "digitalocean": return "Create a DigitalOcean API token with billing read access. Unifai only reads /v2/customers/my/balance; no resource is started or changed."
+        case "supabase": return "Enter the organization slug from your dashboard URL and a personal Management API access token. Unifai reads projects and selected add-ons; it never queries your database. To replace a token, enter both fields; leave both blank to keep it."
         case "openrouter": return "OpenRouter requires a management key. It has broad account authority; Unifai only sends GET /api/v1/credits."
         case "openai-api": return "Create an organization Admin key at platform.openai.com > Settings > Organization > Admin keys. It has broad access; Unifai only sends GET /v1/organization/costs."
         case "claude-api": return "Create an Admin key in Claude Console > Settings > Admin keys (organizations only). It has broad access; Unifai only sends GET /v1/organizations/cost_report. Import top-ups from receipts on the Payments page."
         case "kimi": return "Create an API key at platform.kimi.ai > API Keys. Unifai only sends GET /v1/users/me/balance."
         case "neon": return "Create an API key in the Neon Console > Account settings > API keys (or Organization settings > API keys). Unifai only sends GET requests for your organization and its usage, and never wakes a compute."
+        case "vercel": return "Find Team ID under Vercel team Settings > General. Create an access token at vercel.com/account/tokens scoped to that team. Unifai reads its plan and projects and sends a read-only billing query. To replace a token, enter both fields; leave both blank to keep it."
         case "vercel-ai-gateway": return "Create an API key in the Vercel dashboard > AI Gateway > API Keys. Unifai only sends GET /v1/credits."
         case "elevenlabs": return "Create an API key at elevenlabs.io > Developers > API Keys; it needs User read access. Unifai only sends GET /v1/user/subscription."
         default: return "Unifai only sends GET /user/balance with the key you enter."
         }
     }
+    private var scopeLabel: String {
+        switch integration.id {
+        case "cloudflare": return "Cloudflare Account ID"
+        case "supabase": return "Supabase organization slug"
+        case "github-org-billing": return "GitHub organization"
+        default: return "GitHub username"
+        }
+    }
     private func save() {
         do {
+            let savedCredential: String
+            if integration.id == "vercel", mode == .live, !credential.isEmpty || !vercelTeamID.isEmpty {
+                savedCredential = try VercelClient.Credential.encode(teamID: vercelTeamID, token: credential)
+            } else if ScopedToken.integrations.contains(integration.id), mode == .live, !credential.isEmpty || !vercelTeamID.isEmpty {
+                savedCredential = try ScopedToken.encode(scope: vercelTeamID, token: credential, integration: integration.id)
+            } else { savedCredential = credential }
             if let account {
-                try store.updateAccount(account.id, label: label, credential: credential)
+                try store.updateAccount(account.id, label: label, credential: savedCredential)
                 let threshold = alertBelow.trimmingCharacters(in: .whitespaces)
                 if threshold.isEmpty { try store.setLowBalanceAlert(account.id, below: nil) }
                 else {
@@ -122,7 +148,7 @@ struct AccountEditor: View {
                     try store.setLowBalanceAlert(account.id, below: value)
                 }
             }
-            else { try store.addAccount(integrationID: integration.id, label: label, billingScope: owner, mode: mode, credential: credential) }
+            else { try store.addAccount(integrationID: integration.id, label: label, billingScope: owner, mode: mode, credential: savedCredential) }
             credential = ""; dismiss()
         } catch { self.error = error.localizedDescription }
     }

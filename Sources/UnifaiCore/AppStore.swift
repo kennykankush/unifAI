@@ -391,6 +391,7 @@ public final class AppStore: ObservableObject {
                 let topUps = TopUpWatch.payments(old: previous, new: snapshot, account: next.accounts[current], recorded: next.payments, now: now)
                 next.payments += topUps
                 next.record(AllowanceWatch.events(old: previous, new: snapshot, account: next.accounts[current], now: now)
+                    + PlanWatch.events(old: previous, new: snapshot, account: next.accounts[current], now: now)
                     + Self.anomalyEvents(snapshot, account: next.accounts[current], now: now)
                     + topUps.map { payment in
                         TimelineEvent(id: "topup-\(payment.id)", date: now, kind: .recorded, title: "\(Catalogue.integration(next.accounts[current].integrationID)?.name ?? "Wallet"): top-up detected",

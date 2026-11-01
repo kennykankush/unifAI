@@ -21,6 +21,8 @@ struct WalletDetail: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 22) {
                         hero(account)
+                        if let usage = account.snapshot?.providerUsage { providerUsagePanel(usage) }
+                        if let usage = account.snapshot?.vercelUsage { vercelUsagePanel(usage) }
                         if let days = account.snapshot?.dailyCosts, days.count > 1 { dailyChart(days, anomalies: account.snapshot?.anomalies ?? []) }
                         if let services = account.snapshot?.services, !services.isEmpty { servicesPanel(services) }
                         if let resources = account.snapshot?.resources, !resources.isEmpty { resourcesPanel(resources) }
@@ -79,7 +81,11 @@ struct WalletDetail: View {
                         .buttonStyle(IconButtonStyle(onColor: true)).keyboardShortcut(.cancelAction).accessibilityLabel("Close")
                 }
                 Spacer(minLength: 18)
-                if let spent {
+                if let usage = account.snapshot?.providerUsage {
+                    Text(usage.costLabel).font(.system(size: 12, weight: .semibold)).opacity(0.8)
+                    if let cost = usage.costs.first, usage.costs.count == 1 { MoneyText(money: cost, size: 44, weight: .heavy) }
+                    else { Text(account.integrationID == "supabase" ? "\(account.snapshot?.resources?.count ?? 0) project\(account.snapshot?.resources?.count == 1 ? "" : "s")" : usage.costs.isEmpty ? "No usage rows" : "Multiple currencies").font(.system(size: 30, weight: .heavy)) }
+                } else if let spent {
                     Text(account.snapshot?.consumptionPeriod.map { "Usage \($0.lowercased())" } ?? "Usage").font(.system(size: 12, weight: .semibold)).opacity(0.8)
                     MoneyText(money: spent, size: 44, weight: .heavy)
                     if let pace = Self.pace(spent) {
@@ -165,16 +171,17 @@ struct WalletDetail: View {
 
     private func servicesPanel(_ services: [CostLine]) -> some View {
         let top = services.map { NSDecimalNumber(decimal: $0.cost.amount).doubleValue }.max() ?? 1
+        let sameCurrency = Set(services.map { $0.cost.currency }).count == 1
         return VStack(alignment: .leading, spacing: 12) {
-            SectionHeading(title: "Services", subtitle: "This month")
+            SectionHeading(title: "Services", subtitle: account?.snapshot?.providerUsage?.period ?? "This month")
             ForEach(services, id: \.self) { line in
                 HStack(spacing: 12) {
                     Text(line.name).font(.system(size: 13, weight: .medium)).lineLimit(1).frame(width: 220, alignment: .leading)
-                    GeometryReader { proxy in
+                    if sameCurrency { GeometryReader { proxy in
                         Capsule().fill(Palette.accent.opacity(0.85))
                             .frame(width: max(4, proxy.size.width * NSDecimalNumber(decimal: line.cost.amount).doubleValue / max(top, 0.01)))
                     }
-                    .frame(height: 8)
+                    .frame(height: 8) } else { Spacer(minLength: 12) }
                     MoneyText(money: line.cost, size: 13, weight: .semibold).frame(width: 110, alignment: .trailing)
                 }
             }
@@ -189,7 +196,8 @@ struct WalletDetail: View {
     private func resourcesPanel(_ resources: [CloudResource]) -> some View {
         let groups = Dictionary(grouping: resources, by: \.family)
         return VStack(alignment: .leading, spacing: 6) {
-            SectionHeading(title: "Resources", subtitle: "\(resources.count) · cost this month")
+            SectionHeading(title: account?.integrationID == "vercel" ? "Projects" : "Resources",
+                           subtitle: account?.snapshot?.providerUsage != nil ? "\(resources.count) · provider report" : account?.integrationID == "vercel" ? "\(resources.count) · gross charges this month" : "\(resources.count) · cost this month")
                 .padding(.bottom, 6)
             ForEach(Self.families.filter { groups[$0] != nil }, id: \.self) { family in
                 Text(family.uppercased()).font(.system(size: 10, weight: .bold)).tracking(1).foregroundStyle(.tertiary)
@@ -214,6 +222,11 @@ struct WalletDetail: View {
 
     private func stateChip(_ state: String) -> Chip {
         switch state {
+        case "READY": return Chip(text: "Ready", tint: Palette.positive, symbol: "play.fill")
+        case "ACTIVE_HEALTHY": return Chip(text: "Healthy", tint: Palette.positive, symbol: "play.fill")
+        case "INACTIVE": return Chip(text: "Inactive", tint: .secondary, symbol: "pause.fill")
+        case "ERROR": return Chip(text: "Deployment failed", tint: Palette.negative, symbol: "exclamationmark.triangle.fill")
+        case "BUILDING": return Chip(text: "Building", tint: .secondary, symbol: "arrow.triangle.2.circlepath")
         case "Running": return Chip(text: "Running", tint: Palette.positive, symbol: "play.fill")
         case "Stopped": return Chip(text: "Stopped, still billed", tint: Palette.warning, symbol: "exclamationmark.triangle.fill")
         case "Deleted": return Chip(text: "Deleted", tint: .secondary, symbol: "trash")
@@ -223,6 +236,8 @@ struct WalletDetail: View {
 
     private func resourceRow(_ resource: CloudResource) -> some View {
         let open = expanded.contains(resource.id)
+        let quantities = account?.snapshot?.vercelUsage?.meters.filter { $0.projectID == resource.id } ?? []
+        let providerMeters = account?.snapshot?.providerUsage?.meters.filter { $0.resourceID == resource.id } ?? []
         return VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .top, spacing: 12) {
                 Image(systemName: symbol(resource)).font(.system(size: 14, weight: .semibold)).foregroundStyle(Palette.accentInk)
@@ -244,21 +259,35 @@ struct WalletDetail: View {
                 Spacer(minLength: 12)
                 VStack(alignment: .trailing, spacing: 4) {
                     if let cost = resource.cost { MoneyText(money: cost, size: 15, weight: .bold) }
-                    else { Text("No cost yet").font(.system(size: 12)).foregroundStyle(.tertiary) }
-                    if !resource.meters.isEmpty {
+                    else { Text(Set(resource.meters.map { $0.cost.currency }).count > 1 ? "Multiple currencies" : resource.type.hasPrefix("microsoft.") ? "No cost yet" : "Cost unavailable").font(.system(size: 12)).foregroundStyle(.tertiary) }
+                    if !resource.meters.isEmpty || !quantities.isEmpty || !providerMeters.isEmpty {
                         Button { withAnimation(.snappy(duration: 0.2)) { if open { expanded.remove(resource.id) } else { expanded.insert(resource.id) } } } label: {
-                            Label(open ? "Hide meters" : "\(resource.meters.count) meter\(resource.meters.count == 1 ? "" : "s")", systemImage: open ? "chevron.up" : "chevron.down")
+                            Label(open ? "Hide meters" : "Show meters", systemImage: open ? "chevron.up" : "chevron.down")
                                 .font(.system(size: 11, weight: .medium))
                         }
                         .buttonStyle(.plain).foregroundStyle(.secondary)
                     }
                 }
                 if let url = resource.portalURL, resource.state != "Deleted" {
-                    Link(destination: url) { Image(systemName: "arrow.up.right") }.buttonStyle(IconButtonStyle()).help("Open in the Azure portal")
+                    Link(destination: url) { Image(systemName: "arrow.up.right") }.buttonStyle(IconButtonStyle()).help("Open in provider dashboard").accessibilityLabel("Open \(resource.name) in provider dashboard")
                 }
             }
             if open {
                 VStack(spacing: 6) {
+                    ForEach(Array(providerMeters.enumerated()), id: \.offset) { _, meter in
+                        HStack(alignment: .firstTextBaseline) {
+                            Text(meter.name).font(.system(size: 12)).foregroundStyle(.secondary)
+                            Spacer()
+                            Text("\(meter.quantity.formatted()) \(meter.unit)").font(.system(size: 12)).monospacedDigit()
+                        }
+                    }
+                    ForEach(Array(quantities.enumerated()), id: \.offset) { _, meter in
+                        HStack(alignment: .firstTextBaseline) {
+                            Text(meter.name).font(.system(size: 12)).foregroundStyle(.secondary)
+                            Spacer()
+                            Text("\(meter.quantity.formatted()) \(meter.unit)").font(.system(size: 12)).monospacedDigit()
+                        }
+                    }
                     ForEach(resource.meters, id: \.self) { meter in
                         HStack {
                             Text(meter.name).font(.system(size: 12)).foregroundStyle(.secondary).lineLimit(1)
@@ -275,6 +304,45 @@ struct WalletDetail: View {
     }
 
     // MARK: Payments
+
+    private func providerUsagePanel(_ usage: ProviderUsage) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            SectionHeading(title: "Provider report", subtitle: usage.period)
+            ForEach(usage.costs, id: \.currency) { cost in
+                HStack { Text(usage.costLabel); Spacer(); MoneyText(money: cost, size: 20, weight: .bold) }
+            }
+            if usage.costs.isEmpty { Text("No monetary total returned").font(.callout).foregroundStyle(.secondary) }
+            ForEach(Array(usage.meters.filter { $0.resourceID == nil }.enumerated()), id: \.offset) { _, meter in
+                HStack(alignment: .firstTextBaseline) {
+                    Text(meter.name).font(.system(size: 13, weight: .medium)); Spacer(minLength: 16)
+                    Text("\(meter.quantity.formatted()) \(meter.unit)").font(.system(size: 13, weight: .semibold)).monospacedDigit()
+                }
+            }
+            ForEach(usage.details, id: \.self) { detail in
+                HStack { Text(detail.label); Spacer(); MoneyText(money: detail.value, size: 14, weight: .medium) }
+            }
+            Text(usage.note).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+        }.surface(padding: 20, radius: 22)
+    }
+
+    private func vercelUsagePanel(_ usage: VercelUsage) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            SectionHeading(title: "Vercel usage", subtitle: "Calendar month to date · UTC")
+            if let gross = usage.grossCost {
+                HStack { Text("Gross charges before credits"); Spacer(); MoneyText(money: gross, size: 20, weight: .bold) }
+            }
+            ForEach(Array(usage.meters.filter { $0.projectID == nil }.enumerated()), id: \.offset) { _, meter in
+                HStack(alignment: .firstTextBaseline) {
+                    Text(meter.name).font(.system(size: 13, weight: .medium))
+                    Spacer(minLength: 16)
+                    Text("\(meter.quantity.formatted()) \(meter.unit)").font(.system(size: 13, weight: .semibold)).monospacedDigit()
+                }
+            }
+            Text(usage.note).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            Text("Plan changes appear in Timeline after refresh. The first reading does not establish your upgrade date.")
+                .font(.caption).foregroundStyle(.secondary)
+        }.surface(padding: 20, radius: 22)
+    }
 
     private func paymentsPanel(_ account: ConnectedAccount) -> some View {
         let records = store.state.payments.filter { $0.accountID == account.id }.sorted { $0.paidAt > $1.paidAt }

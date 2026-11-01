@@ -121,6 +121,7 @@ public struct CloudResource: Codable, Hashable, Identifiable {
     /// VM size or SKU.
     public var size: String?
     public var models: [ModelDeployment]?
+    public var webURL: URL?
     public init(id: String, name: String, type: String, group: String, location: String?, cost: Money?, meters: [CostLine],
                 state: String? = nil, size: String? = nil, models: [ModelDeployment]? = nil) {
         self.id = id; self.name = name; self.type = type; self.group = group; self.location = location; self.cost = cost
@@ -130,6 +131,9 @@ public struct CloudResource: Codable, Hashable, Identifiable {
     /// Plain name for the resource type.
     public var kind: String {
         switch type {
+        case "vercel/project", "supabase/project": return "Project"
+        case "github/repository": return "Repository"
+        case "cloudflare/zone": return "Zone usage"
         case "microsoft.compute/virtualmachines": return "Virtual machine"
         case "microsoft.compute/disks": return "Disk"
         case "microsoft.compute/snapshots": return "Disk snapshot"
@@ -171,7 +175,10 @@ public struct CloudResource: Codable, Hashable, Identifiable {
         }
     }
 
-    public var portalURL: URL? { URL(string: "https://portal.azure.com/#resource\(id)") }
+    public var portalURL: URL? {
+        if !type.hasPrefix("microsoft.") { return webURL }
+        return URL(string: "https://portal.azure.com/#resource\(id)")
+    }
 }
 
 /// Total cost of one day, yyyy-MM-dd.
@@ -231,6 +238,11 @@ public struct BalanceSnapshot: Codable, Hashable {
     public var services: [CostLine]?
     public var resources: [CloudResource]?
     public var dailyCosts: [DailyCost]?
+    /// Provider usage before credits; excluded from cash and accruing-cost totals.
+    public var vercelUsage: VercelUsage?
+    public var providerUsage: ProviderUsage?
+    /// Stable provider billing scope, used to avoid mistaking an account switch for a plan change.
+    public var providerScope: String?
     public init(balances: [Money], details: [BalanceDetail] = [], reportedConsumption: [Money] = [], observedAt: Date = .now, source: URL, coverage: String,
                 plan: String? = nil, allowances: [AllowanceWindow]? = nil, limitReached: Bool? = nil, consumptionPeriod: String? = nil,
                 resetCredits: [ResetCredit]? = nil, usageDays: [UsageDay]? = nil, lifetimeTokens: Int64? = nil, anomalies: [CostAnomaly]? = nil) {

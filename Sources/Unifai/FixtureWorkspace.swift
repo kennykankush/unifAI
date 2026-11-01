@@ -54,6 +54,12 @@ enum FixtureWorkspace {
         if !store.state.accounts.contains(where: { $0.integrationID == "openai-api" }) {
             try store.addAccount(integrationID: "openai-api", label: "Side projects", billingScope: "Synthetic organization", mode: .live, credential: "fixture-valid")
         }
+        if !store.state.accounts.contains(where: { $0.integrationID == "vercel" }) {
+            try store.addAccount(integrationID: "vercel", label: "Demo team", billingScope: "Synthetic Vercel team", mode: .live, credential: "fixture-valid")
+        }
+        for integration in ["github-billing", "cloudflare", "digitalocean", "supabase"] where !store.state.accounts.contains(where: { $0.integrationID == integration }) {
+            try store.addAccount(integrationID: integration, label: "Demo", billingScope: "Synthetic \(integration)", mode: .live, credential: "fixture-valid")
+        }
         // Synthetic monthly history so the demo shows a detected subscription.
         if let claude = store.state.accounts.first(where: { $0.integrationID == "claude-subscription" }),
            !store.state.payments.contains(where: { $0.reference.hasPrefix("SYNTHETIC-MAX") }) {
@@ -144,6 +150,40 @@ enum FixtureWorkspace {
     static func balance(_ integration: String, _ credential: String, _ now: Date) async throws -> BalanceSnapshot {
         if credential == "fixture-unauthorized" { throw ConnectorError.authorization }
         if credential == "fixture-offline" { throw URLError(.notConnectedToInternet) }
+        if ["github-billing", "github-org-billing", "cloudflare", "digitalocean", "supabase"].contains(integration) {
+            var snapshot = BalanceSnapshot(balances: [], observedAt: now, source: URL(string: "https://example.invalid/fixture")!, coverage: "Synthetic provider report. No live account was accessed.")
+            let inventory = integration == "supabase"
+            snapshot.providerUsage = ProviderUsage(period: inventory ? "Current inventory" : "Provider billing period",
+                costLabel: inventory ? "Billing unavailable" : integration == "digitalocean" ? "Month-to-date usage" : "Metered usage", costs: inventory ? [] : [Money(12.5, "USD")],
+                meters: inventory || integration == "digitalocean" ? [] : [.init(name: "Compute", quantity: 250, unit: "minutes")],
+                note: inventory ? "Project inventory only. Billing totals and CPU consumption are unavailable." : "Synthetic usage report. Kept separate from payments.")
+            if inventory {
+                var resource = CloudResource(id: "abcdefghijklmnopqrst", name: "Demo database", type: "supabase/project", group: "Demo organization", location: "ap-southeast-1", cost: nil, meters: [], state: "ACTIVE_HEALTHY", size: "Small")
+                resource.webURL = URL(string: "https://supabase.com/dashboard")
+                snapshot.resources = [resource]
+            }
+            if integration == "digitalocean" {
+                snapshot.providerUsage?.details = [BalanceDetail("Account balance (signed)", Money(-20, "USD")), BalanceDetail("Month-to-date balance (signed)", Money(-7.5, "USD"))]
+            }
+            return snapshot
+        }
+        if integration == "vercel" {
+            var snapshot = BalanceSnapshot(balances: [], observedAt: now, source: URL(string: "https://vercel.com/dashboard")!,
+                coverage: "Synthetic Vercel team. No live account was accessed.", plan: "Vercel Pro")
+            snapshot.providerScope = "team_fixture"
+            snapshot.vercelUsage = VercelUsage(from: Calendar.current.dateInterval(of: .month, for: now)!.start, to: now,
+                meters: [.init(name: "Active CPU", quantity: 4.25, unit: "CPU-hours"),
+                         .init(name: "Provisioned memory", quantity: 92, unit: "GB-hours"),
+                         .init(name: "Function invocations", quantity: 125000, unit: "invocations"),
+                         .init(name: "Active CPU", quantity: 4.25, unit: "CPU-hours", projectID: "prj_demo")],
+                grossCost: Money(8.75, "USD"), note: "Synthetic gross charges before credits and taxes. Excluded from spending totals; import invoices to record payments.")
+            snapshot.services = [CostLine(name: "Active CPU", cost: Money(0.85, "USD")), CostLine(name: "Other usage", cost: Money(7.9, "USD"))]
+            var project = CloudResource(id: "prj_demo", name: "Demo application", type: "vercel/project", group: "Fixture team", location: nil,
+                cost: Money(8.75, "USD"), meters: snapshot.services!, state: "READY", size: "Next.js")
+            project.webURL = URL(string: "https://vercel.com/dashboard")
+            snapshot.resources = [project]
+            return snapshot
+        }
         if integration == "codex" {
             let account = Data(#"{"account":{"type":"chatgpt","email":null,"planType":"plus"},"requiresOpenaiAuth":true}"#.utf8)
             let fiveHour = Int(now.addingTimeInterval(3 * 3600 + 1200).timeIntervalSince1970), weekly = Int(now.addingTimeInterval(3 * 86400 + 7200).timeIntervalSince1970)

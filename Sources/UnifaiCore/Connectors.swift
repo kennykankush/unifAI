@@ -34,6 +34,13 @@ public struct BalanceClient {
         if integrationID == "azure-subscription" { return try await AzureCostClient().fetch(now: now) }
         guard !credential.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw ConnectorError.missingCredential }
         if integrationID == "neon" { return try await NeonCostClient(session: session).fetch(credential: credential, now: now) }
+        if integrationID == "vercel" { return try await VercelClient(session: session).fetch(credential: credential, now: now) }
+        if integrationID == "github-billing" || integrationID == "github-org-billing" {
+            return try await GitHubBillingClient(session: session).fetch(credential: credential, organization: integrationID == "github-org-billing", now: now)
+        }
+        if integrationID == "cloudflare" { return try await CloudflareUsageClient(session: session).fetch(credential: credential, now: now) }
+        if integrationID == "digitalocean" { return try await DigitalOceanBillingClient(session: session).fetch(credential: credential, now: now) }
+        if integrationID == "supabase" { return try await SupabaseInventoryClient(session: session).fetch(credential: credential, now: now) }
         let endpoint: String
         switch integrationID {
         case "openrouter": endpoint = "https://openrouter.ai/api/v1/credits"

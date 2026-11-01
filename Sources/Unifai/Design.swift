@@ -44,10 +44,10 @@ enum Palette {
         case "claude-api", "claude-subscription": return [0xA8401F, 0xD8693F, 0xEE9466]
         case "gemini-api", "gemini-consumer", "gemini-cli", "vertex": return [0x2F5BD8, 0x7A5CE8, 0xC77ADB]
         case "azure-subscription": return [0x0B4FB3, 0x1C7BE0, 0x3FA2F2]
-        case "neon": return [0x0A4D3C, 0x0F9A72, 0x2FD9A0]
+        case "neon", "supabase": return [0x0A4D3C, 0x0F9A72, 0x2FD9A0]
         case "aws": return [0x9A5A0C, 0xD18419, 0xEFA53A]
         case "gcp": return [0x1F5BC6, 0x2F8E5A, 0xE0A93A]
-        case "cursor", "github-releases", "github-private", "github-stars", "copilot", "x-accounts", "x-for-you", "xai", "vercel", "vercel-ai-gateway":
+        case "cursor", "github-releases", "github-private", "github-stars", "github-billing", "github-org-billing", "copilot", "x-accounts", "x-for-you", "xai", "vercel", "vercel-ai-gateway":
             return [0x23242B, 0x383A45, 0x5A5D6B]
         case nil: return [0x2C2D36, 0x41434F, 0x6A6D7C]
         default:
@@ -109,6 +109,7 @@ enum Logos {
         case "aws": return "aws-color"
         case "gcp": return "googlecloud-color"
         case "vercel", "vercel-ai-gateway": return "vercel"
+        case "github-billing", "github-org-billing": return "github"
         case "cloudflare": return "cloudflare-color"
         case "digitalocean": return "digitalocean"
         case "railway": return "railway"
@@ -618,6 +619,10 @@ struct WalletCard: View {
                     Text(Catalogue.integration(account.integrationID)?.billing == .payAsYouGo ? "Usage \((snapshot.consumptionPeriod ?? "so far").lowercased())" : "Spent, \((snapshot.consumptionPeriod ?? "reported").lowercased())")
                         .font(.system(size: 11, weight: .medium)).opacity(0.7)
                     MoneyText(money: spent, size: 24)
+                } else if let report = account.snapshot?.providerUsage {
+                    Text(report.costLabel).font(.system(size: 11, weight: .medium)).opacity(0.7)
+                    if report.costs.count == 1, let cost = report.costs.first { MoneyText(money: cost, size: 24) }
+                    else { Text(account.integrationID == "supabase" ? "\(account.snapshot?.resources?.count ?? 0) project\(account.snapshot?.resources?.count == 1 ? "" : "s")" : report.costs.isEmpty ? "No usage rows" : "Multiple currencies").font(.system(size: 20, weight: .bold)) }
                 } else if let plan = account.snapshot?.plan {
                     Text("Plan").font(.system(size: 11, weight: .medium)).opacity(0.7)
                     Text(plan).font(.system(size: 20, weight: .bold)).tracking(-0.4)
