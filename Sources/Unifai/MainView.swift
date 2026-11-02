@@ -26,9 +26,11 @@ enum Destination: String, CaseIterable, Identifiable {
 }
 
 enum Editor: Identifiable {
+    case mcpActivity
     case account(Integration, ConnectedAccount?), payment(PaymentRecord?), subscription(SubscriptionSchedule?), repository, coverage, settings, wallet(UUID), breakdown(Bool, String), backups
     var id: String {
         switch self {
+        case .mcpActivity: return "mcp-activity"
         case .wallet(let id): return "wallet-\(id)"
         case .breakdown(let month, let currency): return "breakdown-\(month)-\(currency)"
         case .backups: return "backups"
@@ -102,6 +104,7 @@ struct MainView: View {
         .task {
             // Record renewals that fell due while the app was closed, then check every 30 minutes.
             while !Task.isCancelled {
+                if !fixtureMode { try? await store.refreshMCPActivity() }
                 announce(store.recordDueRenewals())
                 announce(store.closePayAsYouGoPeriods())
                 await store.refreshRatesIfNeeded()
@@ -120,6 +123,8 @@ struct MainView: View {
         .onAppear {
             AppRuntime.openMain = { openWindow(id: "main"); NSApp.activate(ignoringOtherApps: true) }
             AppRuntime.openSettings = { editor = .settings }
+            AppRuntime.openMCPActivity = { editor = .mcpActivity }
+            if AppRuntime.channel != "release", CommandLine.arguments.contains("--test-mcp-activity") { editor = .mcpActivity }
             AppRuntime.navigate = { destination = $0 }
             if let wallet = AppRuntime.initialWallet { AppRuntime.initialWallet = nil; editor = .wallet(wallet) }
             if AppRuntime.channel != "release", let index = CommandLine.arguments.firstIndex(of: "--test-breakdown"),
@@ -130,6 +135,7 @@ struct MainView: View {
         }
         .sheet(item: $editor) { item in
             switch item {
+            case .mcpActivity: MCPActivityView()
             case .account(let integration, let account): AccountEditor(integration: integration, account: account)
             case .payment(let record): PaymentEditor(record: record)
             case .subscription(let schedule): SubscriptionEditor(schedule: schedule)
@@ -1170,6 +1176,7 @@ struct MainView: View {
             Money(list.reduce(Decimal(0)) { $0 + ($1.cadence == .yearly ? $1.price.amount / 12 : $1.price.amount) }, currency)
         }.sorted { $0.currency < $1.currency }
         return VStack(alignment: .leading, spacing: 0) {
+            Button("MCP activity · I subscribed") { editor = .mcpActivity }.buttonStyle(PillButtonStyle())
             pageHeader("Subscriptions", "Expected charges stay separate from payment history. Record each settled renewal when it happens.",
                        chip: monthly.first.map { Chip(text: "\($0.plainText) / month expected", tint: Palette.accent, symbol: "repeat") })
             let detected = RenewalDetector.suggestions(store.state)

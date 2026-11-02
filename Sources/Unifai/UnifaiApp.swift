@@ -102,6 +102,7 @@ struct MainWindowCommands: Commands {
             Button("Settings...") { openWindow(id: "main"); AppRuntime.openSettings?() }.keyboardShortcut(",", modifiers: .command)
         }
         CommandGroup(after: .newItem) {
+            Button("MCP Activity…") { openWindow(id: "main"); AppRuntime.openMCPActivity?() }
             Button("Show Unifai") { openWindow(id: "main"); NSApp.activate(ignoringOtherApps: true) }.keyboardShortcut("1", modifiers: .command)
             Button("Show Companion") { AppRuntime.showCompanion?() }.keyboardShortcut("m", modifiers: [.command, .shift])
         }
@@ -149,6 +150,7 @@ struct MainWindowCommands: Commands {
     static var showCompanion: (() -> Void)?
     static var openMain: (() -> Void)?
     static var openSettings: (() -> Void)?
+    static var openMCPActivity: (() -> Void)?
     static var navigate: ((Destination) -> Void)?
 }
 

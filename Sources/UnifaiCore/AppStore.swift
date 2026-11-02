@@ -213,6 +213,7 @@ public final class AppStore: ObservableObject {
     public func removePayment(_ id: UUID) throws {
         try change { next in
             next.payments.removeAll { $0.id == id }
+            next.mcpPurchases?.removeAll { $0.paymentID == id }
             if next.historyCoverage != nil { next.historyCoverage?.completeForPeriod = false }
         }
     }

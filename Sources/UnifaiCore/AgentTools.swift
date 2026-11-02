@@ -6,6 +6,8 @@ public enum AgentTools {
     private static let limitParameter: [String: Any] = ["type": "integer", "minimum": 1, "maximum": 200, "description": "Rows to return, default 100. Totals include all matching rows."]
     public static var definitions: [[String: Any]] {
         [
+            definition("get_mcp_activity", "Observed MCP activity and purchases",
+                       "Returns saved metadata-only MCP usage summaries and explicitly linked purchases. Partial local-history coverage, not provider billing or quotas. Never scans files or refreshes.", [:]),
             definition("get_spending_breakdown", "Explain a spending total",
                        "Explains the dashboard arithmetic with original and converted amounts, exchange-rate notes, confirmed/estimated/automatic payments, accruing usage and per-account subtotals. Defaults to this calendar month in the display currency. Current usage cannot be allocated to a historical or partial-month range.",
                        ["period": ["type": "string", "enum": ["month", "all"], "default": "month"],
@@ -139,6 +141,9 @@ public enum AgentTools {
         let currency = try string(arguments, "currency")?.uppercased() ?? state.displayCurrency ?? "USD"
         guard Money.validCurrency(currency) else { throw ValidationError.message("currency must be a supported ISO currency code.") }
         switch name {
+        case "get_mcp_activity":
+            struct Report: Codable { let coverage: String; let scannedAt: Date?; let services: [MCPServiceSummary] }
+            return try encoder.encode(Report(coverage: state.mcpScan?.coverage ?? "No local history scan recorded.", scannedAt: state.mcpScan?.date, services: state.mcpServices(now: now)))
         case "get_spending_breakdown":
             let period = try string(arguments, "period") ?? "month"
             guard ["month", "all"].contains(period) else { throw ValidationError.message("period must be month or all.") }

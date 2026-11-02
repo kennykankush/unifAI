@@ -479,6 +479,9 @@ public struct WatchedRepository: Codable, Identifiable, Hashable {
 
 public struct PersistentState: Codable, Equatable {
     public var schemaVersion: Int = 1
+    public var mcpTrackingEnabled: Bool?
+    public var mcpScan: MCPScan?
+    public var mcpPurchases: [MCPPurchase]?
     public var accounts: [ConnectedAccount] = []
     public var payments: [PaymentRecord] = []
     public var subscriptions: [SubscriptionSchedule] = []

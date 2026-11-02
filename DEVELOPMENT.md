@@ -1,5 +1,9 @@
 # First local milestone
 
+## November 2: MCP activity and purchase declarations
+
+The local development build adds metadata-only local-history scanning, a purchase declaration/linking form, and the read-only `get_mcp_activity` tool. Direct Claude Code MCP calls were observed in the real history check; Codex wrapper calls remain unexpanded. The full suite passed 149 tests with 8 skipped, and all 13 MCP tools passed the stdio smoke check. Native synthetic testing verified a dated Refero lifetime purchase without a renewal. [Verification](evidence/mcp-activity-2026-11-02.md) records coverage and limits. Prepared for release 0.9.14. No real-app purchase was created during verification.
+
 ## November 1: Vercel and connector coverage
 
 Vercel hosting has a team-scoped connector for plan, projects, deployment states and optional gross usage. GitHub personal/organization billing, Cloudflare billable usage, DigitalOcean balances and Supabase project/add-on inventory now have read-only API clients and setup flows. The 105 manual additions were removed at the user's request. See [live coverage](docs/connector-map.md), the [Vercel verification](evidence/vercel-2026-11-01.md), and the [live connector verification](evidence/live-connectors-2026-11-01.md). Authenticated account verification still requires user-entered tokens.

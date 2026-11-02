@@ -59,7 +59,7 @@ def main():
         ])
         assert discovery[1]["result"]["serverInfo"]["version"] == "0.3.0"
         tools = discovery[2]["result"]["tools"]
-        assert len(tools) == 12
+        assert len(tools) == 13
         assert all(tool["annotations"]["readOnlyHint"] for tool in tools)
         requests, names = [], {}
         for index, tool in enumerate(tools, 10):
@@ -95,7 +95,7 @@ def main():
         assert failure[requests[0]["id"]]["result"]["isError"] is True
         assert source.read_text() == "corrupt synthetic state"
         assert sorted(path.name for path in root.iterdir()) == ["state.json"]
-    print("PASS: 12 tools over stdio; structured results, argument errors, corrupt-state refusal, and unchanged data.")
+    print("PASS: 13 tools over stdio; structured results, argument errors, corrupt-state refusal, and unchanged data.")
 
 
 if __name__ == "__main__":

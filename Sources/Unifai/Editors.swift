@@ -323,6 +323,9 @@ struct SettingsEditor: View {
     var body: some View {
         EditorFrame(title: "Settings", saveLabel: "Save Settings", error: error, save: save) {
             Section {
+                Button("MCP activity and subscriptions…") { dismiss(); DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { AppRuntime.openMCPActivity?() } }
+            }
+            Section {
                 Picker("Show spending in", selection: $displayCurrency) {
                     Text("Each currency separately").tag("")
                     ForEach(currencies, id: \.self) { Text("All in \($0)").tag($0) }
