@@ -26,9 +26,11 @@ Screenshots use the synthetic demo workspace described below; no real account da
 
 ## Install
 
+Version 0.9.16 paginates Timeline results at 25 items, embeds MCP activity under **Connectors**, includes every currency in expected subscription totals, and adds **Payments → Review October** (the latest closed month). Monthly reviews show recorded spending, budget comparisons, refunds and outstanding confirmations. Budget history starts from this version; older budgets can be declared explicitly. See [verification and limits](evidence/finance-navigation-2026-11-02.md).
+
 Version 0.9.15 adds **Timeline → Updates** for official OpenAI/Claude product announcements and changes to watched plan-benefit pages. It checks five public sources every six hours, retains before/after wording, and labels announcements separately from account observations. **Mark caught up** records where you left off. Public-source checks and [verification limits](evidence/product-updates-2026-11-02.md) are documented.
 
-Version 0.9.14 adds **Subscriptions → MCP activity · I subscribed** (also **File → MCP Activity**). Enable local-history reads to see observed MCP calls and last use. Record which service you bought, when, the plan and amount, or link an existing payment. Lifetime purchases have no renewal; recurring plans can have an expected renewal without automatic charges. Counts have explicit coverage limits and are not provider quotas. See [verification and limits](evidence/mcp-activity-2026-11-02.md).
+MCP activity, introduced in 0.9.14, is available through **File → MCP Activity**. It now lives under **Connectors → MCP activity**. Enable local-history reads to see observed MCP calls and last use. Record which service you bought, when, the plan and amount, or link an existing payment. Lifetime purchases have no renewal; recurring plans can have an expected renewal without automatic charges. Counts have explicit coverage limits and are not provider quotas. See [verification and limits](evidence/mcp-activity-2026-11-02.md).
 
 Install the signed, notarized app with Homebrew:
 
@@ -57,7 +59,7 @@ open ".build/Unifai Dev.app"
 
 The build uses no package dependencies and applies a local ad-hoc signature. It requires no Apple developer account.
 
-The window opens on **Overview** with an empty state. Click **Add Wallet**, or open **Catalogue** in the top bar, to add an account. The floating top bar (Liquid Glass on macOS 26) switches between Overview, Wallets, Payments, Subscriptions, Timeline and Catalogue, and its lime button runs the current page's main action. A dot marks Wallets when a reading failed or went stale, Subscriptions when a renewal is due within a week, and Timeline when something important happened in the last day. Press Command-F to search the current page and Command-N for the main action. Use the menu bar stack icon for the companion. **File > Show Companion** opens the same panel; **File > Show Unifai** returns to the main window. Closing the window keeps the companion running. Quit from the app menu or companion.
+The window opens on **Overview** with an empty state. Click **Add Wallet**, or open **Connectors** in the top bar, to add an account. The floating top bar (Liquid Glass on macOS 26) switches between Overview, Wallets, Payments, Subscriptions, Timeline and Connectors, and its lime button runs the current page's main action. A dot marks Wallets when a reading failed or went stale, Subscriptions when a renewal is due within a week, and Timeline when something important happened in the last day. Press Command-F to search the current page and Command-N for the main action. Use the menu bar stack icon for the companion. **File > Show Companion** opens the same panel; **File > Show Unifai** returns to the main window. Closing the window keeps the companion running. Quit from the app menu or companion.
 
 ## Connect accounts and record money
 
@@ -97,7 +99,7 @@ You can **Confirm** or **Edit** a detected payment inside its wallet as well as 
 
 Receipt imports replace at most one matching estimate per receipt. If the match is ambiguous, nothing in that import is saved. Edit the matching estimate with the receipt's amount, date and reference, then import again. When you have several wallets for one provider, include **account_label** in the CSV.
 
-Auto renewals, detected top-ups and month-end usage estimates stay marked until a receipt confirms them. While any remain, **Payments** shows a **Close the books** banner with an **Unconfirmed** filter. **Copy Receipt Request** copies a prompt for an agent with mail access: it lists each entry and asks for a CSV in the import format. On the first three days of a month, a notification reminds you if last month still has unconfirmed entries.
+Auto renewals, detected top-ups and month-end usage estimates stay marked until a receipt confirms them. While any remain, **Payments** shows a **Close the books** banner with an **Unconfirmed** filter. **Copy Receipt Request** copies a prompt for an agent with mail access: it lists each entry and asks for a CSV in the import format. Version 0.9.16 replaces the close-the-books reminder with a monthly review notification. Open the review from Payments at any time.
 
 In **Payments**, record settled charges using a positive amount and an ISO currency code such as USD or CNY. Choose **Refund** to reduce the paid total. A receipt reference detects duplicates within the same account. Edit or remove records through their row controls; removals require confirmation.
 
@@ -239,7 +241,7 @@ UNIFAI_TEST_KEYCHAIN=1 UNIFAI_TEST_PUBLIC_GITHUB=1 \
   bash scripts/swift-local.sh test
 ```
 
-The suite currently discovers 156 tests; 10 checks are opt-in, including local MCP history and public product-update pages. The MCP smoke check exercises all 13 tools through the stdio executable against disposable data and verifies that queries leave it unchanged. `UNIFAI_TEST_STATUS=1` reads the four public status pages and `UNIFAI_TEST_AZURE=1` runs a live Azure cost query. An earlier witnessed full run, with both integration checks enabled, passed 32 tests with no failures or skips. It retrieved 50 public GitHub releases in one request. Debug and optimized builds passed. [Native checks](evidence/VERIFICATION.md) covered empty state, account setup, both fixture balances, retained error readings, payments, schedules, catalogue search, releases, resizing and the companion.
+The suite currently discovers 163 tests; 10 checks are opt-in, including local MCP history and public product-update pages. The MCP smoke check exercises all 13 tools through the stdio executable against disposable data and verifies that queries leave it unchanged. `UNIFAI_TEST_STATUS=1` reads the four public status pages and `UNIFAI_TEST_AZURE=1` runs a live Azure cost query. An earlier witnessed full run, with both integration checks enabled, passed 32 tests with no failures or skips. It retrieved 50 public GitHub releases in one request. Debug and optimized builds passed. [Native checks](evidence/VERIFICATION.md) covered empty state, account setup, both fixture balances, retained error readings, payments, schedules, catalogue search, releases, resizing and the companion.
 
 ## Release
 

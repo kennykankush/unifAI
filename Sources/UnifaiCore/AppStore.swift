@@ -345,7 +345,7 @@ public final class AppStore: ObservableObject {
 
     public func setMonthlyBudget(_ budget: Money?) throws {
         if let budget { guard budget.amount > 0, Money.validCurrency(budget.currency) else { throw ValidationError.message("Enter a positive budget and a currency code.") } }
-        try change { $0.monthlyBudget = budget }
+        try setBudgetForMonth(.now, budget: budget)
     }
 
     public func setLowBalanceAlert(_ id: UUID, below amount: Decimal?) throws {

@@ -4,12 +4,20 @@ import UnifaiCore
 struct MCPActivityView: View {
     @EnvironmentObject private var store: AppStore
     @Environment(\.dismiss) private var dismiss
+    var embedded = false
+    var query = ""
     @State private var scanning = false
     @State private var error: String?
     @State private var purchase: String?
     @State private var showPurchase = false
-    private var services: [MCPServiceSummary] { store.state.mcpServices() }
+    private var services: [MCPServiceSummary] { store.state.mcpServices().filter { query.isEmpty || $0.id.localizedCaseInsensitiveContains(query) || $0.purchases.contains { $0.name.localizedCaseInsensitiveContains(query) } } }
     var body: some View {
+        Group {
+            if embedded { content }
+            else { content.padding(24).frame(width: 820, height: 710).background(Palette.canvas) }
+        }.sheet(isPresented: $showPurchase) { MCPSubscriptionEditor(server: purchase) }
+    }
+    private var content: some View {
         VStack(alignment: .leading, spacing: 18) {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
@@ -18,7 +26,7 @@ struct MCPActivityView: View {
                 }
                 Spacer()
                 Button("I subscribed") { purchase = nil; showPurchase = true }.buttonStyle(PillButtonStyle(kind: .primary))
-                Button("Done") { dismiss() }.keyboardShortcut(.cancelAction)
+                if !embedded { Button("Done") { dismiss() }.keyboardShortcut(.cancelAction) }
             }
             HStack {
                 Toggle("Read local client history", isOn: Binding(get: { store.state.mcpTrackingEnabled == true }, set: { value in
@@ -35,8 +43,14 @@ struct MCPActivityView: View {
                 Text("Last scan: \(scan.date.formatted())\(scan.unavailableSources.isEmpty ? "" : " · Unavailable: " + scan.unavailableSources.joined(separator: ", "))")
                     .font(.caption).foregroundStyle(.secondary)
             } else { Text("No scan yet. A subscription can be recorded before its first observed call.").font(.callout).foregroundStyle(.secondary) }
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 14) {
+            Group {
+                if embedded { serviceList }
+                else { ScrollView { serviceList } }
+            }
+        }
+    }
+    private var serviceList: some View {
+        LazyVStack(alignment: .leading, spacing: 14) {
                     if services.isEmpty {
                         Text("No MCP activity recorded").font(.title3.bold()).padding(.top, 24)
                         Text("Enable history reads, or choose “I subscribed” to record Refero or another service.").foregroundStyle(.secondary)
@@ -76,9 +90,6 @@ struct MCPActivityView: View {
                         }.surface(padding: 18, radius: 20)
                     }
                 }
-            }
-        }.padding(24).frame(width: 820, height: 710).background(Palette.canvas)
-        .sheet(isPresented: $showPurchase) { MCPSubscriptionEditor(server: purchase) }
     }
     private func refresh() {
         guard !scanning else { return }

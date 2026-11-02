@@ -8,11 +8,19 @@ import UnifaiCore
     static let shared = Notifier()
     private let defaults = UserDefaults.standard
     private var knownErrors: Set<UUID>?
+    private var pendingMonthReviews = Set<String>()
     private var center: UNUserNotificationCenter { UNUserNotificationCenter.current() }
 
     var enabled: Bool {
         get { defaults.object(forKey: "notificationsEnabled") as? Bool ?? true }
-        set { defaults.set(newValue, forKey: "notificationsEnabled"); if !newValue { center.removeAllPendingNotificationRequests() } }
+        set {
+            defaults.set(newValue, forKey: "notificationsEnabled")
+            if !newValue {
+                center.removeAllPendingNotificationRequests()
+                let keys = (defaults.stringArray(forKey: "monthlyReviewNotices") ?? []).filter { $0 != MonthlyReview.monthKey(.now) }
+                defaults.set(keys, forKey: "monthlyReviewNotices")
+            }
+        }
     }
 
     func start() {
@@ -23,6 +31,17 @@ import UnifaiCore
 
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
         [.banner, .sound, .list]
+    }
+
+    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
+        guard let key = response.notification.request.content.userInfo["reviewMonth"] as? String,
+              let date = MonthlyReview.date(for: key) else { return }
+        await MainActor.run {
+            AppRuntime.pendingMonthlyReview = key
+            AppRuntime.openMain?()
+            if let open = AppRuntime.openMonthlyReview { AppRuntime.pendingMonthlyReview = nil; open(date) }
+            NSApp.activate(ignoringOtherApps: true)
+        }
     }
 
     static func defaultThreshold(for currency: String) -> Decimal { ConnectedAccount.defaultLowBalance(for: currency) }
@@ -69,7 +88,7 @@ import UnifaiCore
             }
         }
         notifyTimeline(state)
-        remindToCloseMonth(state)
+        notifyMonthlyReview(store)
         scheduleUpcoming(state)
     }
 
@@ -90,18 +109,28 @@ import UnifaiCore
         defaults.set(Array(seen.prefix(800)), forKey: "notifiedEvents")
     }
 
-    /// On the first days of a month, once: last month still has Auto or Estimate entries without a receipt.
-    private func remindToCloseMonth(_ state: PersistentState) {
-        let calendar = Calendar.current
-        guard calendar.component(.day, from: .now) <= 3,
-              let lastMonth = calendar.date(byAdding: .month, value: -1, to: .now),
-              let interval = calendar.dateInterval(of: .month, for: lastMonth) else { return }
-        let open = state.payments.filter { $0.autoRecorded && interval.contains($0.paidAt) }
-        let key = "closeMonth-\(lastMonth.formatted(.iso8601.year().month()))"
-        guard !open.isEmpty, !defaults.bool(forKey: key) else { return }
-        defaults.set(true, forKey: key)
-        post(key, title: "Close \(lastMonth.formatted(.dateTime.month(.wide)))",
-             body: "\(open.count) payment\(open.count == 1 ? " is" : "s are") still Auto or Estimate. Import the receipts or confirm them in Payments.")
+    private func notifyMonthlyReview(_ store: AppStore) {
+        center.removePendingNotificationRequests(withIdentifiers: (store.state.reviewedMonths ?? []).map { "month-review-" + $0 })
+        let handled = Set(defaults.stringArray(forKey: "monthlyReviewNotices") ?? []).union(pendingMonthReviews)
+        for reminder in MonthReviewReminder.pending(state: store.state, rates: store.rates, handled: handled) {
+            pendingMonthReviews.insert(reminder.monthKey)
+            let content = UNMutableNotificationContent()
+            content.title = reminder.title; content.body = reminder.body; content.sound = .default
+            content.userInfo = ["reviewMonth": reminder.monthKey]
+            let trigger = reminder.fireAt.map { date in
+                UNCalendarNotificationTrigger(dateMatching: Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: date), repeats: false)
+            }
+            center.add(UNNotificationRequest(identifier: reminder.id, content: content, trigger: trigger)) { error in
+                Task { @MainActor in
+                    self.pendingMonthReviews.remove(reminder.monthKey)
+                    if error == nil && self.enabled {
+                        var keys = Set(self.defaults.stringArray(forKey: "monthlyReviewNotices") ?? [])
+                        keys.insert(reminder.monthKey)
+                        self.defaults.set(Array(keys.sorted().suffix(120)), forKey: "monthlyReviewNotices")
+                    }
+                }
+            }
+        }
     }
 
     /// Renewal reminders the day before at 9:00, and limit-reset notices at the reset time.

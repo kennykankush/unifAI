@@ -53,7 +53,7 @@ struct UnifaiApp: App {
         AppRuntime.channel = fixtureMode ? "fixture" : channel
         // Demo and dev builds: open a specific screen for visual verification.
         if fixtureMode || channel == "dev", let index = args.firstIndex(of: "--destination"), args.indices.contains(index + 1) {
-            AppRuntime.initialDestination = args[index + 1] == "Releases" ? .timeline : Destination(rawValue: args[index + 1])
+            AppRuntime.initialDestination = args[index + 1] == "Releases" ? .timeline : args[index + 1] == "Connectors" ? .catalogue : Destination(rawValue: args[index + 1])
         }
         // Visual checks: open the detail view of the first wallet of a service.
         if fixtureMode || channel == "dev", let index = args.firstIndex(of: "--test-wallet"), args.indices.contains(index + 1) {
@@ -151,6 +151,8 @@ struct MainWindowCommands: Commands {
     static var openMain: (() -> Void)?
     static var openSettings: (() -> Void)?
     static var openMCPActivity: (() -> Void)?
+    static var openMonthlyReview: ((Date) -> Void)?
+    static var pendingMonthlyReview: String?
     static var navigate: ((Destination) -> Void)?
 }
 

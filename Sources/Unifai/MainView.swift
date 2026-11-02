@@ -10,6 +10,7 @@ enum Destination: String, CaseIterable, Identifiable {
         switch self {
         case .today: return "Overview"
         case .accounts: return "Wallets"
+        case .catalogue: return "Connectors"
         default: return rawValue
         }
     }
@@ -26,10 +27,12 @@ enum Destination: String, CaseIterable, Identifiable {
 }
 
 enum Editor: Identifiable {
+    case monthlyReview(Date)
     case mcpActivity
     case account(Integration, ConnectedAccount?), payment(PaymentRecord?), subscription(SubscriptionSchedule?), repository, coverage, settings, wallet(UUID), breakdown(Bool, String), backups
     var id: String {
         switch self {
+        case .monthlyReview(let date): return "review-\(MonthlyReview.monthKey(date))"
         case .mcpActivity: return "mcp-activity"
         case .wallet(let id): return "wallet-\(id)"
         case .breakdown(let month, let currency): return "breakdown-\(month)-\(currency)"
@@ -59,6 +62,8 @@ struct MainView: View {
     @State private var signingIn: Set<UUID> = []
     @State private var infoAccount: UUID?
     @State private var timelineFilter = "All"
+    @State private var timelinePage = 0
+    @State private var connectorTab = "Services"
     @State private var paymentFilter = "All"
     @State private var copiedRequest = false
     @FocusState private var searchFocused: Bool
@@ -68,6 +73,7 @@ struct MainView: View {
 
     var body: some View {
         // Pages scroll under the floating bar, so the glass has colour to refract.
+        ScrollViewReader { scroll in
         ZStack(alignment: .top) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
@@ -101,9 +107,14 @@ struct MainView: View {
         .background(WindowConfigurator(headerHeight: FloatingBar.inset * 2 + FloatingBar.height, trafficLightsX: FloatingBar.sideInset + 20))
         .ignoresSafeArea(.container, edges: .top)
         .onChange(of: destination) { _, _ in search = "" }
+        .onChange(of: timelineFilter) { _, _ in timelinePage = 0; scroll.scrollTo("timeline-events", anchor: .top) }
+        .onChange(of: search) { _, _ in timelinePage = 0 }
+        .onChange(of: timelinePage) { _, _ in scroll.scrollTo("timeline-events", anchor: .top) }
+        .onChange(of: connectorTab) { _, _ in search = "" }
         .task {
             // Record renewals that fell due while the app was closed, then check every 30 minutes.
             while !Task.isCancelled {
+                try? store.captureCurrentMonthBudget()
                 if !fixtureMode { try? await store.refreshMCPActivity() }
                 announce(store.recordDueRenewals())
                 announce(store.closePayAsYouGoPeriods())
@@ -117,14 +128,17 @@ struct MainView: View {
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            try? store.captureCurrentMonthBudget()
             announce(store.recordDueRenewals()); announce(store.closePayAsYouGoPeriods())
         }
         .onChange(of: store.state) { _, _ in Notifier.shared.evaluate(store) }
         .onAppear {
             AppRuntime.openMain = { openWindow(id: "main"); NSApp.activate(ignoringOtherApps: true) }
             AppRuntime.openSettings = { editor = .settings }
-            AppRuntime.openMCPActivity = { editor = .mcpActivity }
-            if AppRuntime.channel != "release", CommandLine.arguments.contains("--test-mcp-activity") { editor = .mcpActivity }
+            AppRuntime.openMCPActivity = { destination = .catalogue; connectorTab = "MCP activity" }
+            AppRuntime.openMonthlyReview = { date in destination = .payments; editor = .monthlyReview(date) }
+            if let key = AppRuntime.pendingMonthlyReview, let date = MonthlyReview.date(for: key) { AppRuntime.pendingMonthlyReview = nil; destination = .payments; editor = .monthlyReview(date) }
+            if AppRuntime.channel != "release", CommandLine.arguments.contains("--test-mcp-activity") { destination = .catalogue; connectorTab = "MCP activity" }
             AppRuntime.navigate = { destination = $0 }
             if let wallet = AppRuntime.initialWallet { AppRuntime.initialWallet = nil; editor = .wallet(wallet) }
             if AppRuntime.channel != "release", let index = CommandLine.arguments.firstIndex(of: "--test-breakdown"),
@@ -135,6 +149,7 @@ struct MainView: View {
         }
         .sheet(item: $editor) { item in
             switch item {
+            case .monthlyReview(let date): MonthlyReviewView(month: date)
             case .mcpActivity: MCPActivityView()
             case .account(let integration, let account): AccountEditor(integration: integration, account: account)
             case .payment(let record): PaymentEditor(record: record)
@@ -153,6 +168,7 @@ struct MainView: View {
         .alert(item: $removal) { item in
             Alert(title: Text(item.title), message: Text("This removes the local record from Unifai."),
                   primaryButton: .destructive(Text("Remove"), action: { perform(item.action) }), secondaryButton: .cancel())
+        }
         }
     }
 
@@ -320,7 +336,7 @@ struct MainView: View {
 
     private var searchPrompt: String {
         switch destination {
-        case .catalogue: return "Search services"
+        case .catalogue: return connectorTab == "MCP activity" ? "Search MCP activity" : "Search connectors"
         case .timeline: return "Search timeline"
         case .payments: return "Search payments"
         default: return "Search"
@@ -1044,6 +1060,7 @@ struct MainView: View {
             pageHeader("Payments", combining ? "Settled charges and refunds from receipts. Shown in \(store.state.displayCurrency!); each payment keeps its recorded currency." : "Settled charges and refunds from receipts. Amounts stay grouped by currency.",
                        chip: month > 0 ? Chip(text: "+\(Money(Decimal(month), currency).amountText) \(currency) this month", tint: Palette.lime, symbol: "arrow.up.right", filled: true) : nil)
                 .padding(.bottom, -18)
+            monthlyReviewBanner
             HStack(alignment: .top, spacing: 18) {
                 VStack(alignment: .leading, spacing: 16) {
                     HStack {
@@ -1170,15 +1187,29 @@ struct MainView: View {
 
     // MARK: Subscriptions
 
+    private var monthlyReviewBanner: some View {
+        let month = MonthlyReview.lastClosedMonth()
+        let reviewed = (store.state.reviewedMonths ?? []).contains(MonthlyReview.monthKey(month))
+        return HStack(spacing: 18) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("\(month.formatted(.dateTime.month(.wide))) wrapped up").font(.system(size: 17, weight: .bold))
+                Text(reviewed ? "Review recorded spending, budget and receipts again." : "See where your money went, how it compared with your budget, and what needs a receipt.").font(.callout).foregroundStyle(.secondary)
+            }
+            Spacer()
+            Button("Review \(month.formatted(.dateTime.month(.wide)))") { editor = .monthlyReview(month) }.buttonStyle(PillButtonStyle(kind: .primary))
+        }.surface(padding: 20, radius: 22)
+    }
+
     private var subscriptions: some View {
         let items = store.state.subscriptions.filter { matches($0.name, accountName($0.accountID)) }.sorted { $0.nextRenewal < $1.nextRenewal }
-        let monthly = Dictionary(grouping: store.state.subscriptions, by: { $0.price.currency }).map { currency, list in
-            Money(list.reduce(Decimal(0)) { $0 + ($1.cadence == .yearly ? $1.price.amount / 12 : $1.price.amount) }, currency)
-        }.sorted { $0.currency < $1.currency }
+        let monthly = SubscriptionCostSummary(schedules: store.state.subscriptions, currency: store.state.displayCurrency, rates: store.rates)
         return VStack(alignment: .leading, spacing: 0) {
-            Button("MCP activity · I subscribed") { editor = .mcpActivity }.buttonStyle(PillButtonStyle())
             pageHeader("Subscriptions", "Expected charges stay separate from payment history. Record each settled renewal when it happens.",
-                       chip: monthly.first.map { Chip(text: "\($0.plainText) / month expected", tint: Palette.accent, symbol: "repeat") })
+                       chip: store.state.subscriptions.isEmpty ? nil : Chip(text: monthly.text, tint: Palette.accent, symbol: "repeat"))
+            if monthly.original.count > 1 {
+                Text(monthly.original.map(\.plainText).joined(separator: " + ") + " per month. " + (monthly.missingRates ? "Missing exchange rates; amounts remain separate." : "Converted totals use current reference rates; annual plans are divided by 12."))
+                    .font(.caption).foregroundStyle(.secondary).padding(.bottom, 18)
+            }
             let detected = RenewalDetector.suggestions(store.state)
             if !detected.isEmpty {
                 VStack(alignment: .leading, spacing: 12) {
@@ -1284,7 +1315,11 @@ struct MainView: View {
     private var catalogue: some View {
         let items = Catalogue.integrations.filter { (category == nil || $0.category == category) && matches($0.name, $0.capabilities, $0.method, $0.status.rawValue) }
         return VStack(alignment: .leading, spacing: 0) {
-            pageHeader("Catalogue", "Connect a supported service, add manual records, or see what is planned.")
+            pageHeader("Connectors", "Connected services, MCP activity and the subscriptions behind them.")
+            SegmentedPills(options: ["Services", "MCP activity"], selection: $connectorTab) { $0 }.padding(.bottom, 24)
+            if connectorTab == "MCP activity" {
+                MCPActivityView(embedded: true, query: search)
+            } else {
             SegmentedPills(options: [nil] + IntegrationCategory.allCases.map(Optional.some), selection: $category) { $0?.rawValue ?? "All" }
                 .padding(.bottom, 24)
             if items.isEmpty { emptyState("No matching services", "Try another search or choose All.", "magnifyingglass").surface() }
@@ -1300,6 +1335,7 @@ struct MainView: View {
                         }
                     }
                 }
+            }
             }
         }
     }
@@ -1395,7 +1431,8 @@ struct MainView: View {
 
     private var timeline: some View {
         let events = (store.state.events ?? []).filter { timelineIncludes($0) && matches($0.title, $0.detail, $0.sourceName) }
-        let days = Dictionary(grouping: events) { Calendar.current.startOfDay(for: $0.date) }
+        let page = TimelinePage(events: events, index: timelinePage)
+        let days = Dictionary(grouping: page.entries) { Calendar.current.startOfDay(for: $0.date) }
         return VStack(alignment: .leading, spacing: 18) {
             pageHeader("Timeline", "Your AI world: resets, benefits, product changes, models, releases and discoveries.")
                 .padding(.bottom, -18)
@@ -1416,6 +1453,7 @@ struct MainView: View {
                         .disabled(store.refreshingTimeline || store.loadFailure != nil)
                     }
                     .padding(.bottom, 10)
+                    if !events.isEmpty { timelinePagination(page).padding(.bottom, 12) }
                     if events.isEmpty {
                         emptyState(store.state.events?.isEmpty == false ? "Nothing here" : "Quiet so far",
                                    store.state.events?.isEmpty == false ? "No events match this filter." : "Resets, limits, cost spikes and incidents appear here as Unifai checks your wallets and providers every 30 minutes.",
@@ -1429,7 +1467,9 @@ struct MainView: View {
                             EventRow(event: event, integrationID: account(event.accountID)?.integrationID)
                         }
                     }
+                    if page.pageCount > 1 { timelinePagination(page).padding(.top, 16) }
                 }
+                .id("timeline-events")
                 .surface(padding: 20, radius: 22)
                 VStack(spacing: 18) {
                     statusSources
@@ -1453,6 +1493,16 @@ struct MainView: View {
             Spacer(minLength: 6)
             trailing()
         }
+    }
+
+    private func timelinePagination(_ page: TimelinePage) -> some View {
+        HStack(spacing: 10) {
+            Text("\(page.lower)–\(page.upper) of \(page.total)").font(.caption).foregroundStyle(.secondary).monospacedDigit()
+            Spacer()
+            Button("Previous") { timelinePage = page.index - 1 }.disabled(page.index == 0)
+            Text("Page \(page.index + 1) of \(page.pageCount)").font(.caption).monospacedDigit()
+            Button("Next") { timelinePage = page.index + 1 }.disabled(page.index + 1 >= page.pageCount)
+        }.buttonStyle(PillButtonStyle(compact: true))
     }
 
     private var timelineCatchUp: some View {

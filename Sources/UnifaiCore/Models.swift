@@ -495,6 +495,8 @@ public struct PersistentState: Codable, Equatable {
     public var displayCurrency: String?
     /// Monthly spending budget, compared against this month's payments in its currency.
     public var monthlyBudget: Money?
+    public var monthlyBudgetHistory: [String: MonthlyBudgetRecord]?
+    public var reviewedMonths: [String]?
     /// Refresh live wallets in the background while the app runs. Nil means on.
     public var autoRefresh: Bool?
     public var events: [TimelineEvent]?

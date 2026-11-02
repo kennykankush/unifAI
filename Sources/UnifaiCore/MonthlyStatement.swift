@@ -16,8 +16,8 @@ public struct MonthlyStatement {
         let interval = calendar.dateInterval(of: .month, for: date) ?? DateInterval(start: date, duration: 0)
         month = interval
         converts = state.displayCurrency != nil
-        let currency = state.displayCurrency ?? Self.mainCurrency(state.payments.filter { interval.contains($0.paidAt) }.map(\.money.currency))
-        breakdown = state.spendingBreakdown(in: currency, rates: rates, since: interval.start, through: interval.end.addingTimeInterval(-1), now: now)
+        let currency = state.displayCurrency ?? Self.mainCurrency(state.payments.filter { $0.paidAt >= interval.start && $0.paidAt < interval.end }.map(\.money.currency))
+        breakdown = state.spendingBreakdown(in: currency, rates: rates, since: interval.start, through: Date(timeIntervalSinceReferenceDate: interval.end.timeIntervalSinceReferenceDate.nextDown), now: now)
         var totals: [String: Decimal] = [:]
         for entry in breakdown.entries { totals[entry.original.currency, default: 0] += entry.original.amount }
         originalTotals = totals.keys.sorted().map { Money(totals[$0]!, $0) }
@@ -47,7 +47,7 @@ public struct MonthlyStatement {
         let components = Calendar.current.dateComponents([.year, .month], from: month.start)
         return String(format: "Unifai statement %04d-%02d", components.year ?? 0, components.month ?? 0)
     }
-    public var isCurrentMonth: Bool { month.contains(breakdown.generatedAt) }
+    public var isCurrentMonth: Bool { breakdown.generatedAt >= month.start && breakdown.generatedAt < month.end }
 
     /// One row per entry, oldest first, with the original amount and its conversion.
     public var csv: String {

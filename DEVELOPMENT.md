@@ -1,5 +1,9 @@
 # First local milestone
 
+## November 2: bounded Timeline and monthly review
+
+The local development build adds 25-item Timeline pages, moves MCP activity into Connectors, fixes the multi-currency expected-subscription header, and adds monthly spending reviews with per-month budget records and review reminders. The full suite passed 163 tests with 10 skipped; native fixture checks verified navigation, currency inclusion, pagination, review comparisons and marking a month reviewed. [Evidence and notification limits](evidence/finance-navigation-2026-11-02.md) distinguish scheduling tests from unverified OS delivery. Prepared for release 0.9.16. Real financial records were not modified during verification.
+
 ## November 2: official product updates and benefit changes
 
 The local Timeline adds five official OpenAI/Anthropic sources, silent policy baselines, changed-wording excerpts, expanded social-post classification and an explicit catch-up marker. The full suite with public-source checks passed 156 tests with 9 skipped; all five real pages decoded, including the recent Codex allowance announcement. Native fixture checks covered the Updates filter, source-detail sheet and catch-up action. See [verification](evidence/product-updates-2026-11-02.md). Prepared for release 0.9.15.
