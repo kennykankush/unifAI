@@ -1,5 +1,9 @@
 # First local milestone
 
+## November 2: official product updates and benefit changes
+
+The local Timeline adds five official OpenAI/Anthropic sources, silent policy baselines, changed-wording excerpts, expanded social-post classification and an explicit catch-up marker. The full suite with public-source checks passed 156 tests with 9 skipped; all five real pages decoded, including the recent Codex allowance announcement. Native fixture checks covered the Updates filter, source-detail sheet and catch-up action. See [verification](evidence/product-updates-2026-11-02.md). Prepared for release 0.9.15.
+
 ## November 2: MCP activity and purchase declarations
 
 The local development build adds metadata-only local-history scanning, a purchase declaration/linking form, and the read-only `get_mcp_activity` tool. Direct Claude Code MCP calls were observed in the real history check; Codex wrapper calls remain unexpanded. The full suite passed 149 tests with 8 skipped, and all 13 MCP tools passed the stdio smoke check. Native synthetic testing verified a dated Refero lifetime purchase without a renewal. [Verification](evidence/mcp-activity-2026-11-02.md) records coverage and limits. Prepared for release 0.9.14. No real-app purchase was created during verification.

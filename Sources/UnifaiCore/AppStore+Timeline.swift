@@ -94,6 +94,7 @@ public extension AppStore {
         refreshingTimeline = true
         defer { refreshingTimeline = false }
         try? change { $0.timelineCheckedAt = now }
+        let productEvents = await refreshProductUpdates(force: force, now: now)
         var incoming: [TimelineEvent] = []
         var errors: [String: String] = [:]
         for feed in StatusFeed.relevant(to: state.accounts) {
@@ -142,7 +143,7 @@ public extension AppStore {
         var fresh: [TimelineEvent] = []
         do { try change { fresh = $0.record(incoming) } }
         catch { notice = "Could not save the timeline: \(error.localizedDescription)" }
-        return fresh
+        return productEvents + fresh
     }
 
     nonisolated static func olderPostID(_ a: String, _ b: String) -> Bool {

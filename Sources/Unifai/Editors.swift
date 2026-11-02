@@ -314,6 +314,7 @@ struct SettingsEditor: View {
     @State private var xHandles = ""
     @State private var newsFeeds = true
     @State private var newModels = true
+    @State private var productUpdates = true
     @State private var showBackups = false
     @State private var error: String?
     private var currencies: [String] {
@@ -347,6 +348,7 @@ struct SettingsEditor: View {
             Section {
                 Toggle("AI news feeds", isOn: $newsFeeds)
                 Toggle("New models from OpenRouter", isOn: $newModels)
+                Toggle("Product updates and plan-benefit changes", isOn: $productUpdates)
             } header: { Text("Timeline") } footer: { Text("News from OpenAI, Google DeepMind, Google AI, Hugging Face and Simon Willison's weblog, and models added to OpenRouter in the last two weeks. Public feeds, read without an account.") }
             Section {
                 TextField("Accounts to follow", text: $xHandles, prompt: Text("thsottiaux, OpenAIDevs"))
@@ -374,6 +376,7 @@ struct SettingsEditor: View {
             xHandles = (store.state.xHandles ?? []).joined(separator: ", ")
             newsFeeds = store.state.newsFeeds != false
             newModels = store.state.newModels != false
+            productUpdates = store.state.productUpdatesEnabled != false
         }
     }
     private func save() {
@@ -388,6 +391,7 @@ struct SettingsEditor: View {
             try store.setXHandles(xHandles)
             if newsFeeds != (store.state.newsFeeds != false) { try store.setNewsFeeds(newsFeeds) }
             if newModels != (store.state.newModels != false) { try store.setNewModels(newModels) }
+            if productUpdates != (store.state.productUpdatesEnabled != false) { try store.setProductUpdates(productUpdates) }
             if removeXToken { try store.setXToken(nil) }
             else if !xToken.trimmingCharacters(in: .whitespaces).isEmpty { try store.setXToken(xToken) }
             Notifier.shared.enabled = notifications

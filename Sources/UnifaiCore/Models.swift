@@ -498,6 +498,11 @@ public struct PersistentState: Codable, Equatable {
     /// Refresh live wallets in the background while the app runs. Nil means on.
     public var autoRefresh: Bool?
     public var events: [TimelineEvent]?
+    public var productUpdatesEnabled: Bool?
+    public var productSnapshots: [String: ProductSnapshot]?
+    public var productChecks: [String: Date]?
+    public var productErrors: [String: String]?
+    public var timelineReadAt: Date?
     public var timelineCheckedAt: Date?
     /// X accounts to follow in the timeline, without the @.
     public var xHandles: [String]?

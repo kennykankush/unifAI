@@ -16,6 +16,7 @@ enum EventStyle {
         case .post: return event.important ? ("arrow.counterclockwise", Palette.lime) : nil
         case .model: return ("sparkles", event.important ? Palette.lime : Palette.accent)
         case .news: return nil
+        case .productUpdate, .policyChange: return ("newspaper.fill", Palette.accent)
         }
     }
 
@@ -43,6 +44,8 @@ enum EventStyle {
         switch event.kind {
         case .release: return "github-releases"
         case .model: return modelLogo(NewModels.author(of: event))
+        case .productUpdate, .policyChange:
+            return event.sourceName.hasPrefix("Claude") ? "claude-subscription" : "codex"
         case .news:
             switch event.sourceName {
             case "OpenAI News": return "openai-api"
@@ -62,6 +65,7 @@ enum EventStyle {
     }
 
     static func tag(_ event: TimelineEvent) -> Chip? {
+        if let notice = event.notice { return Chip(text: notice.topic, tint: Palette.accentInk) }
         switch event.kind {
         case .earlyReset: return Chip(text: "Early reset", tint: Palette.lime, filled: true)
         case .resetCredit: return Chip(text: "Free reset", tint: Palette.lime, filled: true)
@@ -107,6 +111,7 @@ struct EventIcon: View {
 struct EventRow: View {
     let event: TimelineEvent
     let integrationID: String?
+    @State private var showingNotice = false
     var body: some View {
         HStack(alignment: .top, spacing: 14) {
             EventIcon(event: event, integrationID: integrationID)
@@ -119,6 +124,12 @@ struct EventRow: View {
                     Text(event.detail).font(.system(size: 12)).foregroundStyle(.secondary).lineLimit(3)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+                if let notice = event.notice {
+                    HStack {
+                        Text(notice.evidence).font(.system(size: 10, weight: .medium)).foregroundStyle(.secondary)
+                        Button("Read details") { showingNotice = true }.buttonStyle(.plain).font(.system(size: 11, weight: .semibold)).foregroundStyle(Palette.accentInk)
+                    }
+                }
                 Text("\(event.sourceName) · \(event.date.formatted(date: .omitted, time: .shortened))")
                     .font(.system(size: 11, weight: .medium)).foregroundStyle(.tertiary).lineLimit(1)
             }
@@ -128,6 +139,7 @@ struct EventRow: View {
                     .buttonStyle(IconButtonStyle()).help("Open source").accessibilityLabel("Open \(event.title)")
             }
         }
+        .sheet(isPresented: $showingNotice) { ProductNoticeView(event: event) }
         .padding(.horizontal, 10).padding(.vertical, 10)
         .background(RowHighlight())
         .accessibilityElement(children: .combine)

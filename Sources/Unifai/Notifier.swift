@@ -76,7 +76,7 @@ import UnifaiCore
     /// Early resets, free resets, cost spikes and reset posts, once each. Events already saved when
     /// notifications first run are only marked seen.
     private func notifyTimeline(_ state: PersistentState) {
-        let notable: Set<TimelineKind> = [.earlyReset, .resetCredit, .anomaly, .post, .recorded]
+        let notable: Set<TimelineKind> = [.earlyReset, .resetCredit, .anomaly, .post, .recorded, .productUpdate, .policyChange]
         let events = (state.events ?? []).filter { $0.important && notable.contains($0.kind) }
         guard let seenList = defaults.stringArray(forKey: "notifiedEvents") else {
             defaults.set(events.map(\.id), forKey: "notifiedEvents"); return

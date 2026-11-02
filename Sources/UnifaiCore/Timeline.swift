@@ -13,6 +13,8 @@ public enum TimelineKind: String, Codable, CaseIterable {
     case post = "Post"
     case news = "News"
     case model = "New model"
+    case productUpdate = "Product update"
+    case policyChange = "Benefit page change"
 
     public var isAccountEvent: Bool { [.earlyReset, .reset, .limitReached, .resetCredit, .anomaly, .recorded].contains(self) }
 
@@ -35,6 +37,7 @@ public struct TimelineEvent: Codable, Identifiable, Hashable {
     public var accountID: UUID?
     /// Worth a notification and a highlight.
     public var important: Bool
+    public var notice: ProductNotice?
     public init(id: String, date: Date, kind: TimelineKind, title: String, detail: String, source: URL? = nil, sourceName: String, accountID: UUID? = nil, important: Bool = false) {
         self.id = id; self.date = date; self.kind = kind; self.title = title; self.detail = detail
         self.source = source; self.sourceName = sourceName; self.accountID = accountID; self.important = important

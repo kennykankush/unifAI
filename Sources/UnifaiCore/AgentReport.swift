@@ -269,6 +269,7 @@ public enum AgentReport {
         public var source: String?
         public var from: String
         public var important: Bool
+        public var notice: ProductNotice? = nil
     }
 
     public static func timeline(_ state: PersistentState, kinds: Set<String>? = nil, since: Date? = nil, limit: Int = 30) -> [Event] {
@@ -276,7 +277,7 @@ public enum AgentReport {
             (kinds == nil || kinds!.contains(event.kind.rawValue.lowercased())) && (since == nil || event.date >= since!)
         }.prefix(max(0, limit)).map {
             Event(date: $0.date, kind: $0.kind.rawValue, title: $0.title, detail: $0.detail, source: $0.source?.absoluteString,
-                  from: $0.sourceName, important: $0.important)
+                  from: $0.sourceName, important: $0.important, notice: $0.notice)
         }
     }
 

@@ -26,6 +26,8 @@ Screenshots use the synthetic demo workspace described below; no real account da
 
 ## Install
 
+Version 0.9.15 adds **Timeline → Updates** for official OpenAI/Claude product announcements and changes to watched plan-benefit pages. It checks five public sources every six hours, retains before/after wording, and labels announcements separately from account observations. **Mark caught up** records where you left off. Public-source checks and [verification limits](evidence/product-updates-2026-11-02.md) are documented.
+
 Version 0.9.14 adds **Subscriptions → MCP activity · I subscribed** (also **File → MCP Activity**). Enable local-history reads to see observed MCP calls and last use. Record which service you bought, when, the plan and amount, or link an existing payment. Lifetime purchases have no renewal; recurring plans can have an expected renewal without automatic charges. Counts have explicit coverage limits and are not provider quotas. See [verification and limits](evidence/mcp-activity-2026-11-02.md).
 
 Install the signed, notarized app with Homebrew:
@@ -237,7 +239,7 @@ UNIFAI_TEST_KEYCHAIN=1 UNIFAI_TEST_PUBLIC_GITHUB=1 \
   bash scripts/swift-local.sh test
 ```
 
-The suite currently discovers 149 tests; 9 checks are opt-in, including the local MCP history scan. The MCP smoke check exercises all 13 tools through the stdio executable against disposable data and verifies that queries leave it unchanged. `UNIFAI_TEST_STATUS=1` reads the four public status pages and `UNIFAI_TEST_AZURE=1` runs a live Azure cost query. An earlier witnessed full run, with both integration checks enabled, passed 32 tests with no failures or skips. It retrieved 50 public GitHub releases in one request. Debug and optimized builds passed. [Native checks](evidence/VERIFICATION.md) covered empty state, account setup, both fixture balances, retained error readings, payments, schedules, catalogue search, releases, resizing and the companion.
+The suite currently discovers 156 tests; 10 checks are opt-in, including local MCP history and public product-update pages. The MCP smoke check exercises all 13 tools through the stdio executable against disposable data and verifies that queries leave it unchanged. `UNIFAI_TEST_STATUS=1` reads the four public status pages and `UNIFAI_TEST_AZURE=1` runs a live Azure cost query. An earlier witnessed full run, with both integration checks enabled, passed 32 tests with no failures or skips. It retrieved 50 public GitHub releases in one request. Debug and optimized builds passed. [Native checks](evidence/VERIFICATION.md) covered empty state, account setup, both fixture balances, retained error readings, payments, schedules, catalogue search, releases, resizing and the companion.
 
 ## Release
 

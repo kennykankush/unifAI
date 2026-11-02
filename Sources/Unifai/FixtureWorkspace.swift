@@ -116,6 +116,14 @@ enum FixtureWorkspace {
 
     /// Synthetic news feeds and model list; the demo never contacts them.
     static func feeds(_ url: URL) async throws -> Data {
+        if let source = ProductSource.all.first(where: { $0.url == url }) {
+            let date = DateFormatter(); date.locale = Locale(identifier: "en_US_POSIX"); date.dateFormat = "MMMM d, yyyy"; date.timeZone = TimeZone(secondsFromGMT: 0)
+            let day = date.string(from: .now.addingTimeInterval(-86400))
+            let title = source.provider == "OpenAI" ? "More included usage for selected plans" : "A new capability for subscribers"
+            let body = "Synthetic announcement: selected plans receive additional usage and features. Other plans are unchanged. Check eligibility before assuming this applies to your account."
+            if source.format == .markdownNotes { return Data("### \(day)\n- \(body)\n".utf8) }
+            return Data("<article><h1>\(day)</h1><h2>\(title)</h2><p>\(body)</p></article>".utf8)
+        }
         let now = Date.now
         if url == NewModels.url {
             let created = Int(now.addingTimeInterval(-26 * 3600).timeIntervalSince1970), older = Int(now.addingTimeInterval(-4 * 86400).timeIntervalSince1970)

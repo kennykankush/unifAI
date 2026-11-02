@@ -267,10 +267,14 @@ public struct XClient {
     public static func events(_ posts: [Post], handle: String, now: Date = .now) -> [TimelineEvent] {
         posts.map { post in
             let reset = mentionsReset(post.text)
-            return TimelineEvent(id: "post-\(post.id)", date: post.date ?? now, kind: .post,
+            let category = ProductUpdates.topic(post.text)
+            var event = TimelineEvent(id: "post-\(post.id)", date: post.date ?? now, kind: .post,
                                  title: reset ? "@\(handle) on limits and resets" : "@\(handle)",
                                  detail: HTMLText.plain(post.text), source: URL(string: "https://x.com/\(handle)/status/\(post.id)"),
-                                 sourceName: "@\(handle)", important: reset)
+                                 sourceName: "@\(handle)", important: reset || category != "Features & improvements")
+            event.notice = ProductNotice(topic: category, observedAt: now, publishedAt: post.date, previousExcerpt: nil,
+                excerpt: HTMLText.plain(post.text), relevance: "From an account you follow. Check the announcement's scope and eligibility.", evidence: "Social post · not account-confirmed")
+            return event
         }
     }
 }

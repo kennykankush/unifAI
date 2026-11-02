@@ -1356,10 +1356,11 @@ struct MainView: View {
 
     // MARK: Timeline
 
-    private static let timelineFilters = ["All", "Accounts", "Status", "Models", "News", "Releases", "Posts"]
+    private static let timelineFilters = ["All", "Accounts", "Updates", "Status", "Models", "News", "Releases", "Posts"]
 
     private func timelineIncludes(_ event: TimelineEvent) -> Bool {
         switch timelineFilter {
+        case "Updates": return event.kind == .productUpdate || event.kind == .policyChange
         case "Accounts": return event.kind.isAccountEvent
         case "Status": return event.kind == .status
         case "Releases": return event.kind == .release
@@ -1396,13 +1397,14 @@ struct MainView: View {
         let events = (store.state.events ?? []).filter { timelineIncludes($0) && matches($0.title, $0.detail, $0.sourceName) }
         let days = Dictionary(grouping: events) { Calendar.current.startOfDay(for: $0.date) }
         return VStack(alignment: .leading, spacing: 18) {
-            pageHeader("Timeline", "Resets, limits, cost spikes, outages, releases and posts about the services you pay for.")
+            pageHeader("Timeline", "Your AI world: resets, benefits, product changes, models, releases and discoveries.")
                 .padding(.bottom, -18)
             HeadroomCard(report: AgentReport.headroom(store.state, rates: store.rates), advice: planAdvice)
+            timelineCatchUp
             HStack(alignment: .top, spacing: 18) {
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 12) {
-                        SegmentedPills(options: Self.timelineFilters, selection: $timelineFilter) { $0 }
+                        ScrollView(.horizontal, showsIndicators: false) { SegmentedPills(options: Self.timelineFilters, selection: $timelineFilter) { $0 } }
                         Spacer()
                         Button(action: checkNow) {
                             HStack(spacing: 6) {
@@ -1432,6 +1434,7 @@ struct MainView: View {
                 VStack(spacing: 18) {
                     statusSources
                     newsSources
+                    productSources
                     xSources
                     repositorySources
                 }
@@ -1450,6 +1453,48 @@ struct MainView: View {
             Spacer(minLength: 6)
             trailing()
         }
+    }
+
+    private var timelineCatchUp: some View {
+        let since = store.state.timelineReadAt ?? Date.now.addingTimeInterval(-86400)
+        let fresh = (store.state.events ?? []).filter { ($0.notice?.observedAt ?? $0.date) > since }.sorted {
+            $0.important == $1.important ? $0.date > $1.date : $0.important && !$1.important
+        }
+        var highlighted = Set<String>()
+        let highlights = fresh.filter { highlighted.insert($0.sourceName + "|" + $0.title).inserted }.prefix(3)
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                SectionHeading(title: store.state.timelineReadAt == nil ? "Last 24 hours" : "Since you caught up", subtitle: "\(fresh.count) timeline items")
+                Spacer()
+                Button("Mark caught up") { perform { try store.markTimelineRead() } }.buttonStyle(PillButtonStyle(compact: true)).disabled(fresh.isEmpty)
+            }
+            if fresh.isEmpty { Text("You're caught up with the sources checked so far.").font(.callout).foregroundStyle(.secondary) }
+            else {
+                ForEach(highlights) { event in
+                    HStack { Text(event.title).font(.system(size: 13, weight: .medium)).lineLimit(2); Spacer(); Text(event.sourceName).font(.caption).foregroundStyle(.secondary) }
+                }
+            }
+        }.surface(padding: 18, radius: 22)
+    }
+
+    private var productSources: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            SectionHeading(title: "Product updates", subtitle: store.state.productUpdatesEnabled == false ? "Off" : "Official sources · every six hours")
+            if store.state.productUpdatesEnabled != false {
+                ForEach(ProductSource.all) { source in
+                    let failure = store.state.productErrors?[source.id]
+                    let checked = store.state.productSnapshots?[source.id]?.checkedAt
+                    let status = failure != nil ? "Could not check · previous data kept" : checked.map { "Checked \($0.formatted(.relative(presentation: .named)))" } ?? "Not checked yet"
+                    Link(destination: source.pageURL) {
+                        sourceRow(source.provider == "Anthropic" ? "claude-subscription" : "codex", source.name, status) {
+                            Circle().fill(failure != nil ? Palette.warning : checked == nil ? Color.secondary : Palette.positive).frame(width: 7, height: 7)
+                        }
+                    }.buttonStyle(.plain).help(status)
+                }
+                Text("Plan pages establish a baseline first. Later wording changes are shown with before/after excerpts, not assumed account benefits.")
+                    .font(.caption).foregroundStyle(.secondary)
+            } else { Text("Enable product updates in Settings.").font(.caption).foregroundStyle(.secondary) }
+        }.surface(padding: 18, radius: 22)
     }
 
     /// The latest incident for a provider's status page, if any in the last two weeks.
